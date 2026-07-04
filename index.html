@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Satguru — Bid Management Tool</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f0f2f5;
+      color: #1a1a2e;
+      min-height: 100vh;
+    }
+
+    /* Header */
+    .header {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%);
+      color: white;
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+    }
+    .header-left { display: flex; align-items: center; gap: 14px; }
+    .logo {
+      width: 40px; height: 40px;
+      background: #e94560;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 18px; color: white;
+    }
+    .header h1 { font-size: 20px; font-weight: 700; letter-spacing: 0.3px; }
+    .header-sub { font-size: 12px; opacity: 0.65; margin-top: 2px; }
+    .header-date { font-size: 12px; opacity: 0.6; }
+
+    /* Sync button */
+    .sync-btn {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 16px; border-radius: 8px; border: none;
+      background: rgba(255,255,255,0.12); color: white;
+      font-size: 13px; font-weight: 600; cursor: pointer;
+      transition: all 0.2s;
+    }
+    .sync-btn:hover { background: rgba(255,255,255,0.2); }
+    .sync-btn.running { opacity: 0.7; cursor: not-allowed; }
+    .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: #27ae60; }
+    .sync-dot.spinning {
+      background: #f39c12;
+      animation: pulse 1s infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+    /* Toast */
+    .toast {
+      position: fixed; bottom: 24px; right: 24px;
+      background: #1a1a2e; color: white;
+      padding: 12px 20px; border-radius: 10px;
+      font-size: 13px; z-index: 200;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+      transform: translateY(80px); opacity: 0;
+      transition: all 0.3s;
+    }
+    .toast.show { transform: translateY(0); opacity: 1; }
+    .toast.success { border-left: 4px solid #27ae60; }
+    .toast.error { border-left: 4px solid #e94560; }
+    .toast.info { border-left: 4px solid #3498db; }
+
+    /* Scraped tenders panel */
+    .scraped-panel {
+      background: white; border-radius: 12px;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.07);
+      margin-bottom: 20px; overflow: hidden;
+      display: none;
+    }
+    .scraped-panel.visible { display: block; }
+    .scraped-header {
+      background: #f8f9fb; padding: 12px 16px;
+      display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid #eee;
+    }
+    .scraped-title { font-size: 13px; font-weight: 700; color: #1a1a2e; }
+    .scraped-sub { font-size: 11px; color: #888; }
+    .scraped-item {
+      padding: 12px 16px; border-bottom: 1px solid #f5f5f5;
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+    }
+    .scraped-item:last-child { border-bottom: none; }
+    .scraped-item-info { flex: 1; }
+    .scraped-item-title { font-size: 13px; font-weight: 600; color: #1a1a2e; margin-bottom: 3px; }
+    .scraped-item-meta { font-size: 11px; color: #888; }
+
+    /* Tabs */
+    .tabs {
+      background: #16213e;
+      display: flex;
+      gap: 0;
+      padding: 0 32px;
+      overflow-x: auto;
+    }
+    .tab-btn {
+      padding: 12px 22px;
+      background: none;
+      border: none;
+      color: rgba(255,255,255,0.55);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+    .tab-btn:hover { color: rgba(255,255,255,0.85); }
+    .tab-btn.active {
+      color: #e94560;
+      border-bottom-color: #e94560;
+    }
+
+    /* Content */
+    .tab-content { display: none; padding: 28px 32px; }
+    .tab-content.active { display: block; }
+
+    /* Stats row */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+    .stat-card {
+      background: white;
+      border-radius: 12px;
+      padding: 18px 20px;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.07);
+      border-left: 4px solid #e94560;
+    }
+    .stat-card.blue { border-left-color: #0f3460; }
+    .stat-card.green { border-left-color: #27ae60; }
+    .stat-card.orange { border-left-color: #e67e22; }
+    .stat-card.purple { border-left-color: #8e44ad; }
+    .stat-label { font-size: 11px; text-transform: uppercase; color: #888; letter-spacing: 0.5px; }
+    .stat-value { font-size: 28px; font-weight: 700; color: #1a1a2e; margin-top: 4px; }
+
+    /* Section headers */
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .section-title { font-size: 16px; font-weight: 700; color: #1a1a2e; }
+
+    /* Buttons */
+    .btn {
+      padding: 9px 18px;
+      border-radius: 8px;
+      border: none;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-primary { background: #e94560; color: white; }
+    .btn-primary:hover { background: #c73652; }
+    .btn-secondary { background: #f0f2f5; color: #1a1a2e; border: 1px solid #ddd; }
+    .btn-secondary:hover { background: #e5e7eb; }
+    .btn-sm { padding: 5px 12px; font-size: 12px; }
+
+    /* Table */
+    .table-wrap {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.07);
+      overflow: hidden;
+    }
+    table { width: 100%; border-collapse: collapse; }
+    thead th {
+      background: #f8f9fb;
+      padding: 12px 14px;
+      text-align: left;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #666;
+      border-bottom: 1px solid #eee;
+    }
+    tbody tr { border-bottom: 1px solid #f5f5f5; transition: background 0.15s; }
+    tbody tr:hover { background: #fafbfc; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody td { padding: 12px 14px; font-size: 13px; color: #333; }
+
+    /* Badge */
+    .badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .badge-new { background: #e8f4fd; color: #2980b9; }
+    .badge-progress { background: #fef9e7; color: #d68910; }
+    .badge-submitted { background: #eafaf1; color: #1e8449; }
+    .badge-won { background: #d5f5e3; color: #1a5e33; }
+    .badge-lost { background: #fdecea; color: #c0392b; }
+    .badge-pending { background: #f5eef8; color: #7d3c98; }
+
+    .source-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      background: #eef2ff;
+      color: #4338ca;
+    }
+
+    /* Modal */
+    .modal-overlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: white;
+      border-radius: 16px;
+      padding: 28px;
+      width: 620px;
+      max-width: 95vw;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+    }
+    .modal-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .modal-title { font-size: 17px; font-weight: 700; }
+    .modal-close {
+      background: #f5f5f5; border: none; border-radius: 50%;
+      width: 32px; height: 32px; cursor: pointer; font-size: 16px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .modal-close:hover { background: #eee; }
+
+    /* Form */
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .form-group { display: flex; flex-direction: column; gap: 5px; }
+    .form-group.full { grid-column: 1 / -1; }
+    .form-group label { font-size: 12px; font-weight: 600; color: #555; }
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      padding: 9px 12px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 13px;
+      color: #1a1a2e;
+      background: #fafafa;
+      transition: border-color 0.2s;
+      font-family: inherit;
+    }
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+      outline: none;
+      border-color: #e94560;
+      background: white;
+    }
+    .form-group textarea { resize: vertical; min-height: 70px; }
+    .modal-footer {
+      display: flex; gap: 10px; justify-content: flex-end;
+      margin-top: 20px; padding-top: 16px;
+      border-top: 1px solid #eee;
+    }
+
+    /* Portals tab */
+    .portals-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 20px;
+    }
+    .portal-card {
+      background: white;
+      border-radius: 14px;
+      padding: 22px;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.07);
+      border-top: 4px solid #e94560;
+    }
+    .portal-card.open { border-top-color: #27ae60; }
+    .portal-type {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.5px; color: #888; margin-bottom: 8px;
+    }
+    .portal-name { font-size: 17px; font-weight: 700; color: #1a1a2e; margin-bottom: 6px; }
+    .portal-url {
+      font-size: 12px; color: #e94560; text-decoration: none;
+      display: block; margin-bottom: 14px;
+    }
+    .portal-url:hover { text-decoration: underline; }
+    .portal-info { font-size: 12px; color: #666; line-height: 1.8; }
+    .portal-info span { color: #333; font-weight: 500; }
+    .portal-actions { display: flex; gap: 8px; margin-top: 14px; }
+
+    /* Empty state */
+    .empty-state {
+      text-align: center; padding: 60px 20px; color: #999;
+    }
+    .empty-state .icon { font-size: 40px; margin-bottom: 12px; }
+    .empty-state p { font-size: 14px; }
+
+    /* Filter bar */
+    .filter-bar {
+      display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap;
+    }
+    .filter-bar input, .filter-bar select {
+      padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px;
+      font-size: 13px; background: white; color: #333;
+    }
+    .filter-bar input { min-width: 200px; }
+    .filter-bar input:focus, .filter-bar select:focus {
+      outline: none; border-color: #e94560;
+    }
+
+    /* Action icons */
+    .action-btn {
+      background: none; border: none; cursor: pointer;
+      padding: 4px 6px; border-radius: 6px; color: #666; font-size: 13px;
+    }
+    .action-btn:hover { background: #f0f2f5; color: #e94560; }
+
+    /* Responsive */
+    @media (max-width: 600px) {
+      .header { padding: 14px 16px; }
+      .tabs { padding: 0 16px; }
+      .tab-content { padding: 20px 16px; }
+      .form-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-left">
+    <div class="logo">S</div>
+    <div>
+      <h1>Satguru Bid Management</h1>
+      <div class="header-sub">Travel Management · Bid & Tender Tracker</div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <div class="header-date" id="headerDate"></div>
+    <button class="sync-btn" id="syncBtn" onclick="triggerSync()">
+      <span class="sync-dot" id="syncDot"></span>
+      <span id="syncBtnText">Sync Portals</span>
+    </button>
+  </div>
+</div>
+
+<!-- Tabs -->
+<div class="tabs">
+  <button class="tab-btn active" onclick="switchTab('dashboard')">Dashboard</button>
+  <button class="tab-btn" onclick="switchTab('bids')">Bid Tracker</button>
+  <button class="tab-btn" onclick="switchTab('portals')">Portals</button>
+</div>
+
+<!-- ===== DASHBOARD TAB ===== -->
+<div id="tab-dashboard" class="tab-content active">
+
+  <div class="stats-row" id="statsRow"></div>
+
+  <div class="section-header">
+    <div class="section-title">Recent Bids</div>
+    <button class="btn btn-primary btn-sm" onclick="switchTab('bids')">View All</button>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Bid ID</th>
+          <th>Tender Name</th>
+          <th>Source</th>
+          <th>Deadline</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="recentBidsBody">
+        <tr><td colspan="5"><div class="empty-state"><div class="icon">📋</div><p>No bids yet. Add one from the Bid Tracker tab.</p></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ===== BID TRACKER TAB ===== -->
+<div id="tab-bids" class="tab-content">
+
+  <div class="section-header">
+    <div class="section-title">All Bids</div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-secondary" onclick="loadScrapedTenders()">View Synced Tenders</button>
+      <button class="btn btn-primary" onclick="openModal()">+ Add New Bid</button>
+    </div>
+  </div>
+
+  <!-- Scraped tenders from portals -->
+  <div class="scraped-panel" id="scrapedPanel">
+    <div class="scraped-header">
+      <div>
+        <div class="scraped-title">Tenders from Portals</div>
+        <div class="scraped-sub" id="scrapedSub">Click "Add to Tracker" to log a tender</div>
+      </div>
+      <button class="btn btn-secondary btn-sm" onclick="closeScrapedPanel()">Close</button>
+    </div>
+    <div id="scrapedList"></div>
+  </div>
+
+  <div class="filter-bar">
+    <input type="text" id="searchInput" placeholder="Search by tender name or client..." oninput="renderBidTable()"/>
+    <select id="filterStatus" onchange="renderBidTable()">
+      <option value="">All Statuses</option>
+      <option value="New">New</option>
+      <option value="In Progress">In Progress</option>
+      <option value="Submitted">Submitted</option>
+      <option value="Won">Won</option>
+      <option value="Lost">Lost</option>
+    </select>
+    <select id="filterSource" onchange="renderBidTable()">
+      <option value="">All Sources</option>
+      <option value="Global Tenders">Global Tenders</option>
+      <option value="Tenders Info">Tenders Info</option>
+      <option value="Jobs in Rwanda">Jobs in Rwanda</option>
+      <option value="Direct">Direct</option>
+      <option value="Other">Other</option>
+    </select>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Bid ID</th>
+          <th>Tender Name</th>
+          <th>Client / Issuer</th>
+          <th>Country</th>
+          <th>Source</th>
+          <th>Deadline</th>
+          <th>EMD</th>
+          <th>Tech Bid</th>
+          <th>Fin Bid</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="bidTableBody">
+        <tr><td colspan="11"><div class="empty-state"><div class="icon">📋</div><p>No bids added yet. Click "+ Add New Bid" to get started.</p></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ===== PORTALS TAB ===== -->
+<div id="tab-portals" class="tab-content">
+  <div class="section-header">
+    <div class="section-title">Sourcing Portals</div>
+  </div>
+  <div class="portals-grid">
+
+    <!-- Global Tenders -->
+    <div class="portal-card">
+      <div class="portal-type">Paid Portal</div>
+      <div class="portal-name">Global Tenders</div>
+      <a href="https://www.globaltenders.com" target="_blank" class="portal-url">globaltenders.com ↗</a>
+      <div class="portal-info">
+        Login: <span>bid.marketing@satgurutravel.com</span><br>
+        Coverage: <span>Worldwide tenders & RFPs</span><br>
+        Category: <span>Travel Management, Corporate, Govt</span>
+      </div>
+      <div class="portal-actions">
+        <a href="https://www.globaltenders.com" target="_blank" class="btn btn-primary btn-sm">Open Portal</a>
+      </div>
+    </div>
+
+    <!-- Tenders Info -->
+    <div class="portal-card">
+      <div class="portal-type">Paid Portal</div>
+      <div class="portal-name">Tenders Info</div>
+      <a href="https://www.tendersinfo.com" target="_blank" class="portal-url">tendersinfo.com ↗</a>
+      <div class="portal-info">
+        Login: <span>bid.marketing@satgurutravel.com</span><br>
+        Coverage: <span>India & Global tenders</span><br>
+        Category: <span>Travel Management, MICE, Ticketing</span>
+      </div>
+      <div class="portal-actions">
+        <a href="https://www.tendersinfo.com" target="_blank" class="btn btn-primary btn-sm">Open Portal</a>
+      </div>
+    </div>
+
+    <!-- Jobs in Rwanda -->
+    <div class="portal-card open">
+      <div class="portal-type">Open Source Portal</div>
+      <div class="portal-name">Jobs in Rwanda</div>
+      <a href="https://www.jobsinrwanda.com" target="_blank" class="portal-url">jobsinrwanda.com ↗</a>
+      <div class="portal-info">
+        Login: <span>Not required (Open Access)</span><br>
+        Coverage: <span>Rwanda & East Africa</span><br>
+        Category: <span>Govt, NGO, UN Agency tenders</span>
+      </div>
+      <div class="portal-actions">
+        <a href="https://www.jobsinrwanda.com" target="_blank" class="btn btn-secondary btn-sm">Open Portal</a>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ===== ADD / EDIT BID MODAL ===== -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModalOutside(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modalTitle">Add New Bid</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+
+    <form id="bidForm" onsubmit="saveBid(event)">
+      <div class="form-grid">
+
+        <div class="form-group full">
+          <label>Tender Name *</label>
+          <input type="text" id="f_name" placeholder="e.g. Corporate Travel Management Services" required />
+        </div>
+
+        <div class="form-group">
+          <label>Client / Issuer *</label>
+          <input type="text" id="f_client" placeholder="e.g. UN Rwanda" required />
+        </div>
+
+        <div class="form-group">
+          <label>Country</label>
+          <input type="text" id="f_country" placeholder="e.g. Rwanda" />
+        </div>
+
+        <div class="form-group">
+          <label>Source Portal *</label>
+          <select id="f_source" required>
+            <option value="">Select portal</option>
+            <option value="Global Tenders">Global Tenders</option>
+            <option value="Tenders Info">Tenders Info</option>
+            <option value="Jobs in Rwanda">Jobs in Rwanda</option>
+            <option value="Direct">Direct / Referral</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Tender Ref / Bid No.</label>
+          <input type="text" id="f_ref" placeholder="e.g. RFP/2026/001" />
+        </div>
+
+        <div class="form-group">
+          <label>Submission Deadline *</label>
+          <input type="date" id="f_deadline" required />
+        </div>
+
+        <div class="form-group">
+          <label>Estimated Value (USD)</label>
+          <input type="number" id="f_value" placeholder="e.g. 500000" />
+        </div>
+
+        <div class="form-group">
+          <label>EMD / Bid Bond Required?</label>
+          <select id="f_emd">
+            <option value="No">No</option>
+            <option value="Yes">Yes</option>
+            <option value="TBD">TBD</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>EMD Amount (if yes)</label>
+          <input type="text" id="f_emdAmt" placeholder="e.g. USD 5,000" />
+        </div>
+
+        <div class="form-group">
+          <label>Technical Bid Status</label>
+          <select id="f_techStatus">
+            <option value="Not Started">Not Started</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Done">Done</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Financial Bid Status</label>
+          <select id="f_finStatus">
+            <option value="Not Started">Not Started</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Done">Done</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Overall Status</label>
+          <select id="f_status">
+            <option value="New">New</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Submitted">Submitted</option>
+            <option value="Won">Won</option>
+            <option value="Lost">Lost</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Assigned To</label>
+          <input type="text" id="f_assigned" placeholder="Team member name" />
+        </div>
+
+        <div class="form-group full">
+          <label>Notes / Remarks</label>
+          <textarea id="f_notes" placeholder="Any special requirements, eligibility criteria, follow-up notes..."></textarea>
+        </div>
+
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Bid</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  // ── Data ──────────────────────────────────────────────────────────────────
+  let bids = JSON.parse(localStorage.getItem('satguru_bids') || '[]');
+  let editingId = null;
+  let bidCounter = parseInt(localStorage.getItem('satguru_bid_counter') || '0');
+
+  function saveData() {
+    localStorage.setItem('satguru_bids', JSON.stringify(bids));
+    localStorage.setItem('satguru_bid_counter', String(bidCounter));
+  }
+
+  // ── Date ──────────────────────────────────────────────────────────────────
+  document.getElementById('headerDate').textContent =
+    new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+
+  // ── Tabs ──────────────────────────────────────────────────────────────────
+  function switchTab(name) {
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + name).classList.add('active');
+    document.querySelectorAll('.tab-btn').forEach(b => {
+      if (b.textContent.toLowerCase().includes(name === 'bids' ? 'tracker' : name)) b.classList.add('active');
+    });
+    if (name === 'dashboard') renderDashboard();
+    if (name === 'bids') renderBidTable();
+  }
+
+  // ── Status badge ─────────────────────────────────────────────────────────
+  function statusBadge(s) {
+    const map = {
+      'New': 'badge-new', 'In Progress': 'badge-progress',
+      'Submitted': 'badge-submitted', 'Won': 'badge-won',
+      'Lost': 'badge-lost', 'Not Started': 'badge-pending',
+      'Done': 'badge-submitted', 'Pending': 'badge-pending'
+    };
+    return `<span class="badge ${map[s] || 'badge-pending'}">${s}</span>`;
+  }
+
+  // ── Dashboard ─────────────────────────────────────────────────────────────
+  function renderDashboard() {
+    const total = bids.length;
+    const won = bids.filter(b => b.status === 'Won').length;
+    const submitted = bids.filter(b => b.status === 'Submitted').length;
+    const inProgress = bids.filter(b => b.status === 'In Progress').length;
+    const newBids = bids.filter(b => b.status === 'New').length;
+
+    document.getElementById('statsRow').innerHTML = `
+      <div class="stat-card blue"><div class="stat-label">Total Bids</div><div class="stat-value">${total}</div></div>
+      <div class="stat-card orange"><div class="stat-label">New</div><div class="stat-value">${newBids}</div></div>
+      <div class="stat-card"><div class="stat-label">In Progress</div><div class="stat-value">${inProgress}</div></div>
+      <div class="stat-card purple"><div class="stat-label">Submitted</div><div class="stat-value">${submitted}</div></div>
+      <div class="stat-card green"><div class="stat-label">Won</div><div class="stat-value">${won}</div></div>
+    `;
+
+    const recent = [...bids].sort((a,b) => b.id - a.id).slice(0, 8);
+    const body = document.getElementById('recentBidsBody');
+    if (!recent.length) {
+      body.innerHTML = `<tr><td colspan="5"><div class="empty-state"><div class="icon">📋</div><p>No bids yet. Add one from the Bid Tracker tab.</p></div></td></tr>`;
+    } else {
+      body.innerHTML = recent.map(b => `
+        <tr>
+          <td><strong>${b.bidId}</strong></td>
+          <td>${b.name}</td>
+          <td><span class="source-badge">${b.source}</span></td>
+          <td>${b.deadline || '—'}</td>
+          <td>${statusBadge(b.status)}</td>
+        </tr>`).join('');
+    }
+  }
+
+  // ── Bid Table ─────────────────────────────────────────────────────────────
+  function renderBidTable() {
+    const search = document.getElementById('searchInput').value.toLowerCase();
+    const filterStatus = document.getElementById('filterStatus').value;
+    const filterSource = document.getElementById('filterSource').value;
+
+    let filtered = bids.filter(b => {
+      const matchSearch = !search || b.name.toLowerCase().includes(search) || (b.client||'').toLowerCase().includes(search);
+      const matchStatus = !filterStatus || b.status === filterStatus;
+      const matchSource = !filterSource || b.source === filterSource;
+      return matchSearch && matchStatus && matchSource;
+    });
+
+    const body = document.getElementById('bidTableBody');
+    if (!filtered.length) {
+      body.innerHTML = `<tr><td colspan="11"><div class="empty-state"><div class="icon">📋</div><p>No bids match your search. Try adjusting filters or add a new bid.</p></div></td></tr>`;
+      return;
+    }
+
+    body.innerHTML = filtered.sort((a,b) => b.id - a.id).map(b => `
+      <tr>
+        <td><strong>${b.bidId}</strong></td>
+        <td>${b.name}</td>
+        <td>${b.client || '—'}</td>
+        <td>${b.country || '—'}</td>
+        <td><span class="source-badge">${b.source}</span></td>
+        <td>${b.deadline || '—'}</td>
+        <td>${b.emd === 'Yes' ? `<span class="badge badge-progress">Yes${b.emdAmt ? ' · '+b.emdAmt : ''}</span>` : b.emd}</td>
+        <td>${statusBadge(b.techStatus)}</td>
+        <td>${statusBadge(b.finStatus)}</td>
+        <td>${statusBadge(b.status)}</td>
+        <td>
+          <button class="action-btn" onclick="editBid(${b.id})" title="Edit">✏️</button>
+          <button class="action-btn" onclick="deleteBid(${b.id})" title="Delete">🗑️</button>
+        </td>
+      </tr>`).join('');
+  }
+
+  // ── Modal ─────────────────────────────────────────────────────────────────
+  function openModal(bid) {
+    editingId = bid ? bid.id : null;
+    document.getElementById('modalTitle').textContent = bid ? 'Edit Bid' : 'Add New Bid';
+    document.getElementById('f_name').value = bid?.name || '';
+    document.getElementById('f_client').value = bid?.client || '';
+    document.getElementById('f_country').value = bid?.country || '';
+    document.getElementById('f_source').value = bid?.source || '';
+    document.getElementById('f_ref').value = bid?.ref || '';
+    document.getElementById('f_deadline').value = bid?.deadline || '';
+    document.getElementById('f_value').value = bid?.value || '';
+    document.getElementById('f_emd').value = bid?.emd || 'No';
+    document.getElementById('f_emdAmt').value = bid?.emdAmt || '';
+    document.getElementById('f_techStatus').value = bid?.techStatus || 'Not Started';
+    document.getElementById('f_finStatus').value = bid?.finStatus || 'Not Started';
+    document.getElementById('f_status').value = bid?.status || 'New';
+    document.getElementById('f_assigned').value = bid?.assigned || '';
+    document.getElementById('f_notes').value = bid?.notes || '';
+    document.getElementById('modalOverlay').classList.add('open');
+  }
+
+  function closeModal() {
+    document.getElementById('modalOverlay').classList.remove('open');
+    editingId = null;
+  }
+
+  function closeModalOutside(e) {
+    if (e.target === document.getElementById('modalOverlay')) closeModal();
+  }
+
+  function editBid(id) {
+    const bid = bids.find(b => b.id === id);
+    if (bid) openModal(bid);
+  }
+
+  function deleteBid(id) {
+    if (!confirm('Delete this bid?')) return;
+    bids = bids.filter(b => b.id !== id);
+    saveData();
+    renderBidTable();
+    renderDashboard();
+  }
+
+  function saveBid(e) {
+    e.preventDefault();
+    const data = {
+      name: document.getElementById('f_name').value.trim(),
+      client: document.getElementById('f_client').value.trim(),
+      country: document.getElementById('f_country').value.trim(),
+      source: document.getElementById('f_source').value,
+      ref: document.getElementById('f_ref').value.trim(),
+      deadline: document.getElementById('f_deadline').value,
+      value: document.getElementById('f_value').value,
+      emd: document.getElementById('f_emd').value,
+      emdAmt: document.getElementById('f_emdAmt').value.trim(),
+      techStatus: document.getElementById('f_techStatus').value,
+      finStatus: document.getElementById('f_finStatus').value,
+      status: document.getElementById('f_status').value,
+      assigned: document.getElementById('f_assigned').value.trim(),
+      notes: document.getElementById('f_notes').value.trim(),
+    };
+
+    if (editingId !== null) {
+      const idx = bids.findIndex(b => b.id === editingId);
+      bids[idx] = { ...bids[idx], ...data };
+    } else {
+      bidCounter++;
+      const year = new Date().getFullYear();
+      data.id = Date.now();
+      data.bidId = `BID-${year}-${String(bidCounter).padStart(3,'0')}`;
+      data.createdAt = new Date().toISOString();
+      bids.push(data);
+    }
+
+    saveData();
+    closeModal();
+    renderBidTable();
+    renderDashboard();
+  }
+
+  // ── Sync / Scraper ───────────────────────────────────────────────────────
+  let syncPollTimer = null;
+
+  function showToast(msg, type = 'info') {
+    let t = document.getElementById('toast');
+    if (!t) {
+      t = document.createElement('div');
+      t.id = 'toast';
+      t.className = 'toast';
+      document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.className = `toast ${type} show`;
+    clearTimeout(t._hide);
+    t._hide = setTimeout(() => t.classList.remove('show'), 4000);
+  }
+
+  async function triggerSync() {
+    const btn = document.getElementById('syncBtn');
+    const dot = document.getElementById('syncDot');
+    const txt = document.getElementById('syncBtnText');
+
+    try {
+      const res = await fetch('/api/sync', { method: 'POST' });
+      const data = await res.json();
+
+      if (data.status === 'already_running') {
+        showToast('Scraper is already running...', 'info');
+        return;
+      }
+
+      btn.classList.add('running');
+      dot.classList.add('spinning');
+      txt.textContent = 'Syncing...';
+      showToast('Scraper started — checking both portals. Takes ~60 seconds.', 'info');
+
+      // Poll for completion
+      syncPollTimer = setInterval(async () => {
+        try {
+          const s = await fetch('/api/sync/status');
+          const status = await s.json();
+          if (!status.running) {
+            clearInterval(syncPollTimer);
+            btn.classList.remove('running');
+            dot.classList.remove('spinning');
+            txt.textContent = 'Sync Portals';
+            if (status.error) {
+              showToast('Sync error: ' + status.error, 'error');
+            } else {
+              showToast(`Sync complete — ${status.last_count} new tenders found!`, 'success');
+              loadScrapedTenders();
+            }
+          }
+        } catch (e) { /* server might be busy */ }
+      }, 3000);
+
+    } catch (e) {
+      showToast('Cannot reach server. Make sure server.py is running.', 'error');
+    }
+  }
+
+  async function loadScrapedTenders() {
+    const panel = document.getElementById('scrapedPanel');
+    const list = document.getElementById('scrapedList');
+    const sub = document.getElementById('scrapedSub');
+
+    try {
+      const res = await fetch('/api/tenders');
+      const tenders = await res.json();
+
+      if (!tenders.length) {
+        list.innerHTML = '<div class="empty-state" style="padding:30px"><div class="icon">🔍</div><p>No tenders synced yet. Click "Sync Portals" to fetch from portals.</p></div>';
+      } else {
+        sub.textContent = `${tenders.length} tenders found — click "Add" to log any into your Bid Tracker`;
+        list.innerHTML = tenders.map((t, i) => `
+          <div class="scraped-item">
+            <div class="scraped-item-info">
+              <div class="scraped-item-title">${t.title || 'Untitled Tender'}</div>
+              <div class="scraped-item-meta">
+                <span class="source-badge">${t.source}</span>
+                &nbsp;${t.details || ''}
+                &nbsp;·&nbsp;Scraped: ${t.scraped_at ? t.scraped_at.split('T')[0] : ''}
+              </div>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="addScrapedToTracker(${i})">+ Add</button>
+          </div>`).join('');
+        window._scrapedTenders = tenders;
+      }
+
+      panel.classList.add('visible');
+      switchTab('bids');
+    } catch (e) {
+      showToast('Cannot load tenders — make sure server.py is running.', 'error');
+    }
+  }
+
+  function closeScrapedPanel() {
+    document.getElementById('scrapedPanel').classList.remove('visible');
+  }
+
+  function addScrapedToTracker(idx) {
+    const t = (window._scrapedTenders || [])[idx];
+    if (!t) return;
+    // Pre-fill modal with scraped data
+    openModal();
+    document.getElementById('modalTitle').textContent = 'Add Scraped Tender';
+    document.getElementById('f_name').value = t.title || '';
+    document.getElementById('f_source').value = t.source === 'Global Tenders' ? 'Global Tenders' :
+                                                  t.source === 'Tenders Info' ? 'Tenders Info' : 'Other';
+    document.getElementById('f_notes').value = t.details || '';
+  }
+
+  // ── Init ──────────────────────────────────────────────────────────────────
+  renderDashboard();
+</script>
+</body>
+</html>

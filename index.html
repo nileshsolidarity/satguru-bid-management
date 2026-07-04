@@ -317,7 +317,7 @@
 
     /* Filter bar */
     .filter-bar {
-      display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap;
+      display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; align-items: center;
     }
     .filter-bar input, .filter-bar select {
       padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px;
@@ -327,6 +327,32 @@
     .filter-bar input:focus, .filter-bar select:focus {
       outline: none; border-color: #e94560;
     }
+
+    /* View toggle */
+    .view-toggle {
+      display: flex; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; margin-left: auto;
+    }
+    .view-toggle button {
+      padding: 7px 14px; border: none; background: white; font-size: 12px;
+      font-weight: 600; cursor: pointer; color: #888; transition: all 0.15s;
+    }
+    .view-toggle button.active { background: #1a1a2e; color: white; }
+
+    /* Country group */
+    .country-group { margin-bottom: 20px; }
+    .country-header {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 14px;
+      background: linear-gradient(135deg, #1a1a2e, #0f3460);
+      color: white; border-radius: 10px 10px 0 0;
+      font-size: 13px; font-weight: 700;
+    }
+    .country-flag { font-size: 20px; }
+    .country-count {
+      margin-left: auto; background: rgba(255,255,255,0.15);
+      padding: 2px 10px; border-radius: 20px; font-size: 11px;
+    }
+    .country-group .table-wrap { border-radius: 0 0 10px 10px; }
 
     /* Action icons */
     .action-btn {
@@ -439,29 +465,38 @@
       <option value="Direct">Direct</option>
       <option value="Other">Other</option>
     </select>
+    <select id="filterCountry" onchange="renderBidTable()">
+      <option value="">All Countries</option>
+    </select>
+    <div class="view-toggle">
+      <button id="viewFlat" class="active" onclick="setView('flat')">Flat</button>
+      <button id="viewGrouped" onclick="setView('grouped')">By Country</button>
+    </div>
   </div>
 
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th>Bid ID</th>
-          <th>Tender Name</th>
-          <th>Client / Issuer</th>
-          <th>Country</th>
-          <th>Source</th>
-          <th>Deadline</th>
-          <th>EMD</th>
-          <th>Tech Bid</th>
-          <th>Fin Bid</th>
-          <th>Status</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody id="bidTableBody">
-        <tr><td colspan="11"><div class="empty-state"><div class="icon">📋</div><p>No bids added yet. Click "+ Add New Bid" to get started.</p></div></td></tr>
-      </tbody>
-    </table>
+  <div id="bidTableContainer">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Bid ID</th>
+            <th>Tender Name</th>
+            <th>Client / Issuer</th>
+            <th>Country</th>
+            <th>Source</th>
+            <th>Deadline</th>
+            <th>EMD</th>
+            <th>Tech Bid</th>
+            <th>Fin Bid</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="bidTableBody">
+          <tr><td colspan="11"><div class="empty-state"><div class="icon">📋</div><p>No bids added yet. Click "+ Add New Bid" to get started.</p></div></td></tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 </div>
 
@@ -732,42 +767,106 @@
     }
   }
 
+  // ── View toggle ───────────────────────────────────────────────────────────
+  let currentView = 'flat';
+  function setView(v) {
+    currentView = v;
+    document.getElementById('viewFlat').classList.toggle('active', v === 'flat');
+    document.getElementById('viewGrouped').classList.toggle('active', v === 'grouped');
+    renderBidTable();
+  }
+
+  // ── Country filter population ─────────────────────────────────────────────
+  function populateCountryFilter() {
+    const sel = document.getElementById('filterCountry');
+    const current = sel.value;
+    const countries = [...new Set(bids.map(b => b.country).filter(Boolean))].sort();
+    sel.innerHTML = '<option value="">All Countries</option>' +
+      countries.map(c => `<option value="${c}" ${c === current ? 'selected' : ''}>${c}</option>`).join('');
+  }
+
+  // ── Bid row HTML ──────────────────────────────────────────────────────────
+  function bidRow(b) {
+    return `<tr>
+      <td><strong>${b.bidId}</strong></td>
+      <td>${b.name}</td>
+      <td>${b.client || '—'}</td>
+      <td>${b.country || '—'}</td>
+      <td><span class="source-badge">${b.source}</span></td>
+      <td>${b.deadline || '—'}</td>
+      <td>${b.emd === 'Yes' ? `<span class="badge badge-progress">Yes${b.emdAmt ? ' · '+b.emdAmt : ''}</span>` : b.emd}</td>
+      <td>${statusBadge(b.techStatus)}</td>
+      <td>${statusBadge(b.finStatus)}</td>
+      <td>${statusBadge(b.status)}</td>
+      <td>
+        <button class="action-btn" onclick="editBid(${b.id})" title="Edit">✏️</button>
+        <button class="action-btn" onclick="deleteBid(${b.id})" title="Delete">🗑️</button>
+      </td>
+    </tr>`;
+  }
+
   // ── Bid Table ─────────────────────────────────────────────────────────────
   function renderBidTable() {
+    populateCountryFilter();
     const search = document.getElementById('searchInput').value.toLowerCase();
     const filterStatus = document.getElementById('filterStatus').value;
     const filterSource = document.getElementById('filterSource').value;
+    const filterCountry = document.getElementById('filterCountry').value;
 
     let filtered = bids.filter(b => {
       const matchSearch = !search || b.name.toLowerCase().includes(search) || (b.client||'').toLowerCase().includes(search);
       const matchStatus = !filterStatus || b.status === filterStatus;
       const matchSource = !filterSource || b.source === filterSource;
-      return matchSearch && matchStatus && matchSource;
-    });
+      const matchCountry = !filterCountry || b.country === filterCountry;
+      return matchSearch && matchStatus && matchSource && matchCountry;
+    }).sort((a,b) => b.id - a.id);
 
-    const body = document.getElementById('bidTableBody');
+    const container = document.getElementById('bidTableContainer');
+
     if (!filtered.length) {
-      body.innerHTML = `<tr><td colspan="11"><div class="empty-state"><div class="icon">📋</div><p>No bids match your search. Try adjusting filters or add a new bid.</p></div></td></tr>`;
+      container.innerHTML = `<div class="table-wrap"><table><tbody><tr><td colspan="11"><div class="empty-state"><div class="icon">📋</div><p>No bids match your filters.</p></div></td></tr></tbody></table></div>`;
       return;
     }
 
-    body.innerHTML = filtered.sort((a,b) => b.id - a.id).map(b => `
-      <tr>
-        <td><strong>${b.bidId}</strong></td>
-        <td>${b.name}</td>
-        <td>${b.client || '—'}</td>
-        <td>${b.country || '—'}</td>
-        <td><span class="source-badge">${b.source}</span></td>
-        <td>${b.deadline || '—'}</td>
-        <td>${b.emd === 'Yes' ? `<span class="badge badge-progress">Yes${b.emdAmt ? ' · '+b.emdAmt : ''}</span>` : b.emd}</td>
-        <td>${statusBadge(b.techStatus)}</td>
-        <td>${statusBadge(b.finStatus)}</td>
-        <td>${statusBadge(b.status)}</td>
-        <td>
-          <button class="action-btn" onclick="editBid(${b.id})" title="Edit">✏️</button>
-          <button class="action-btn" onclick="deleteBid(${b.id})" title="Delete">🗑️</button>
-        </td>
-      </tr>`).join('');
+    const thead = `<thead><tr>
+      <th>Bid ID</th><th>Tender Name</th><th>Client / Issuer</th><th>Country</th>
+      <th>Source</th><th>Deadline</th><th>EMD</th><th>Tech Bid</th>
+      <th>Fin Bid</th><th>Status</th><th>Actions</th>
+    </tr></thead>`;
+
+    if (currentView === 'flat') {
+      container.innerHTML = `<div class="table-wrap"><table>${thead}<tbody id="bidTableBody">${filtered.map(bidRow).join('')}</tbody></table></div>`;
+      return;
+    }
+
+    // Grouped by country
+    const groups = {};
+    filtered.forEach(b => {
+      const key = b.country || 'Unspecified';
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(b);
+    });
+
+    const countryFlags = {
+      'South Africa': '🇿🇦', 'Rwanda': '🇷🇼', 'Kenya': '🇰🇪', 'Uganda': '🇺🇬',
+      'Tanzania': '🇹🇿', 'Nigeria': '🇳🇬', 'Ghana': '🇬🇭', 'Ethiopia': '🇪🇹',
+      'United States Of America': '🇺🇸', 'United Kingdom': '🇬🇧', 'India': '🇮🇳',
+      'Malaysia': '🇲🇾', 'Canada': '🇨🇦', 'Australia': '🇦🇺', 'France': '🇫🇷',
+      'Germany': '🇩🇪', 'Swaziland': '🇸🇿', 'Botswana': '🇧🇼', 'Zambia': '🇿🇲',
+      'Zimbabwe': '🇿🇼', 'Mozambique': '🇲🇿', 'Namibia': '🇳🇦', 'Unspecified': '🌍'
+    };
+
+    container.innerHTML = Object.keys(groups).sort().map(country => `
+      <div class="country-group">
+        <div class="country-header">
+          <span class="country-flag">${countryFlags[country] || '🌍'}</span>
+          <span>${country}</span>
+          <span class="country-count">${groups[country].length} bid${groups[country].length > 1 ? 's' : ''}</span>
+        </div>
+        <div class="table-wrap">
+          <table>${thead}<tbody>${groups[country].map(bidRow).join('')}</tbody></table>
+        </div>
+      </div>`).join('');
   }
 
   // ── Modal ─────────────────────────────────────────────────────────────────

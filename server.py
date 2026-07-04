@@ -9,10 +9,12 @@ import os
 import threading
 import asyncio
 from flask import Flask, send_from_directory, jsonify
+from flask_cors import CORS
 from scraper import run_scraper
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 app = Flask(__name__, static_folder=BASE_DIR)
+CORS(app, origins=["https://satguru-bid-management.vercel.app", "http://localhost:3000"])
 
 scraper_status = {"running": False, "last_run": None, "last_count": 0, "error": None}
 
@@ -64,5 +66,6 @@ def get_tenders():
 
 
 if __name__ == "__main__":
-    print("Satguru Bid Management running at http://localhost:3000")
-    app.run(port=3000, debug=False)
+    port = int(os.environ.get("PORT", 3000))
+    print(f"Satguru Bid Management running at http://localhost:{port}")
+    app.run(host="0.0.0.0", port=port, debug=False)

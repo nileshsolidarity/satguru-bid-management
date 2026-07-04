@@ -868,23 +868,21 @@
   }
 
   const IS_LOCAL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  const API_BASE = IS_LOCAL
+    ? ''
+    : 'https://bid-management-backend-309310310208.us-central1.run.app';
 
   function showModal(id) {
     document.getElementById(id).classList.add('open');
   }
 
   async function triggerSync() {
-    if (!IS_LOCAL) {
-      showModal('syncInfoModal');
-      return;
-    }
-
     const btn = document.getElementById('syncBtn');
     const dot = document.getElementById('syncDot');
     const txt = document.getElementById('syncBtnText');
 
     try {
-      const res = await fetch('/api/sync', { method: 'POST' });
+      const res = await fetch(`${API_BASE}/api/sync`, { method: 'POST' });
       const data = await res.json();
 
       if (data.status === 'already_running') {
@@ -899,7 +897,7 @@
 
       syncPollTimer = setInterval(async () => {
         try {
-          const s = await fetch('/api/sync/status');
+          const s = await fetch(`${API_BASE}/api/sync/status`);
           const status = await s.json();
           if (!status.running) {
             clearInterval(syncPollTimer);
@@ -927,7 +925,7 @@
     const sub = document.getElementById('scrapedSub');
 
     try {
-      const res = await fetch('/api/tenders');
+      const res = await fetch(`${API_BASE}/api/tenders`);
       const tenders = await res.json();
 
       if (!tenders.length) {

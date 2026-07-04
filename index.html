@@ -520,6 +520,33 @@
   </div>
 </div>
 
+<!-- ===== SYNC INFO MODAL (shown on Vercel) ===== -->
+<div class="modal-overlay" id="syncInfoModal" onclick="closeModalOutside(event)">
+  <div class="modal" style="max-width:460px;">
+    <div class="modal-header">
+      <div class="modal-title">How to Sync Portals</div>
+      <button class="modal-close" onclick="document.getElementById('syncInfoModal').classList.remove('open')">✕</button>
+    </div>
+    <p style="font-size:13px;color:#555;line-height:1.7;margin-bottom:16px;">
+      The <strong>Sync Portals</strong> feature uses a browser automation script (Playwright) to log into
+      Global Tenders &amp; Tenders Info and pull live tenders. This requires running the backend on your Mac —
+      it cannot run on Vercel's servers.
+    </p>
+    <div style="background:#f8f9fb;border-radius:10px;padding:16px;font-size:13px;line-height:2;">
+      <strong>To sync tenders, open Terminal and run:</strong><br>
+      <code style="background:#1a1a2e;color:#e94560;padding:8px 12px;border-radius:6px;display:block;margin-top:8px;font-size:12px;">
+        cd "/Users/satguru/Bid Management tool"<br>
+        python3 server.py
+      </code>
+      <br>
+      Then open <strong>http://localhost:3000</strong> — the Sync button will work there.
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="document.getElementById('syncInfoModal').classList.remove('open')">Got it</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===== ADD / EDIT BID MODAL ===== -->
 <div class="modal-overlay" id="modalOverlay" onclick="closeModalOutside(event)">
   <div class="modal">
@@ -840,7 +867,18 @@
     t._hide = setTimeout(() => t.classList.remove('show'), 4000);
   }
 
+  const IS_LOCAL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+  function showModal(id) {
+    document.getElementById(id).classList.add('open');
+  }
+
   async function triggerSync() {
+    if (!IS_LOCAL) {
+      showModal('syncInfoModal');
+      return;
+    }
+
     const btn = document.getElementById('syncBtn');
     const dot = document.getElementById('syncDot');
     const txt = document.getElementById('syncBtnText');
@@ -859,7 +897,6 @@
       txt.textContent = 'Syncing...';
       showToast('Scraper started — checking both portals. Takes ~60 seconds.', 'info');
 
-      // Poll for completion
       syncPollTimer = setInterval(async () => {
         try {
           const s = await fetch('/api/sync/status');

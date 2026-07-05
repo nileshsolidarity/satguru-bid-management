@@ -1,0 +1,1595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Satguru — Tender / Bid Management</title>
+
+  <!-- Firebase SDKs (compat) -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-storage-compat.js"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --navy: #1a1a2e;
+      --navy2: #16213e;
+      --blue: #0f3460;
+      --red: #e94560;
+      --bg: #f0f2f5;
+      --card: #ffffff;
+      --border: #e0e4ea;
+      --text: #1a1a2e;
+      --muted: #6b7280;
+      --success: #16a34a;
+      --warning: #d97706;
+      --danger: #dc2626;
+      --info: #2563eb;
+    }
+    body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; }
+
+    /* ── LOGIN ── */
+    #login-screen {
+      min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, var(--navy) 0%, var(--navy2) 60%, var(--blue) 100%);
+    }
+    .login-card {
+      background: white; border-radius: 20px;
+      padding: 48px 40px; text-align: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3); width: 380px;
+    }
+    .login-logo {
+      width: 64px; height: 64px; background: var(--red); border-radius: 16px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 28px; font-weight: 800; color: white; margin: 0 auto 20px;
+    }
+    .login-card h2 { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+    .login-card p { color: var(--muted); font-size: 13px; margin-bottom: 32px; }
+    .google-btn {
+      display: flex; align-items: center; justify-content: center; gap: 12px;
+      width: 100%; padding: 14px; border: 2px solid var(--border);
+      border-radius: 10px; background: white; font-size: 15px; font-weight: 600;
+      cursor: pointer; transition: all 0.2s; color: var(--text);
+    }
+    .google-btn:hover { border-color: var(--blue); background: #f8fafc; }
+    .google-btn svg { width: 20px; height: 20px; }
+    .login-note { margin-top: 20px; font-size: 12px; color: var(--muted); }
+
+    /* ── APP SHELL ── */
+    #app { display: none; flex-direction: column; min-height: 100vh; }
+
+    /* Header */
+    .header {
+      background: linear-gradient(135deg, var(--navy) 0%, var(--navy2) 60%, var(--blue) 100%);
+      color: white; padding: 14px 28px;
+      display: flex; align-items: center; justify-content: space-between;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.3); position: sticky; top: 0; z-index: 100;
+    }
+    .header-left { display: flex; align-items: center; gap: 14px; }
+    .logo { width: 38px; height: 38px; background: var(--red); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 17px; color: white; }
+    .header h1 { font-size: 18px; font-weight: 700; }
+    .header-sub { font-size: 11px; opacity: 0.6; }
+    .header-right { display: flex; align-items: center; gap: 16px; }
+    .user-chip { display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.1); border-radius: 8px; padding: 6px 12px; }
+    .user-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--red); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: white; overflow: hidden; }
+    .user-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .user-name { font-size: 13px; font-weight: 600; }
+    .user-role { font-size: 10px; opacity: 0.7; }
+    .home-btn { background: rgba(255,255,255,0.1); border: none; color: white; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 12px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+    .home-btn:hover { background: rgba(255,255,255,0.2); }
+    .signout-btn { background: rgba(255,255,255,0.1); border: none; color: white; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 12px; }
+    .signout-btn:hover { background: rgba(255,255,255,0.2); }
+
+    /* Tabs */
+    .tabs-bar {
+      background: var(--navy2); display: flex; gap: 2px; padding: 0 28px;
+      border-bottom: 2px solid rgba(255,255,255,0.08);
+    }
+    .tab-btn {
+      padding: 13px 20px; font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.55);
+      border: none; background: none; cursor: pointer; border-bottom: 3px solid transparent;
+      margin-bottom: -2px; transition: all 0.2s; white-space: nowrap;
+    }
+    .tab-btn:hover { color: rgba(255,255,255,0.85); }
+    .tab-btn.active { color: white; border-bottom-color: var(--red); font-weight: 700; }
+    .tab-content { display: none; padding: 28px; }
+    .tab-content.active { display: block; }
+
+    /* Cards & layout */
+    .card { background: var(--card); border-radius: 12px; border: 1px solid var(--border); }
+    .card-header { padding: 18px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+    .card-title { font-size: 15px; font-weight: 700; }
+    .card-body { padding: 20px; }
+
+    /* Dashboard stats */
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .stat-card { background: var(--card); border-radius: 12px; padding: 20px; border: 1px solid var(--border); }
+    .stat-label { font-size: 12px; color: var(--muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat-val { font-size: 32px; font-weight: 800; margin-top: 6px; color: var(--navy); }
+    .stat-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .stat-card.red .stat-val { color: var(--danger); }
+    .stat-card.green .stat-val { color: var(--success); }
+    .stat-card.orange .stat-val { color: var(--warning); }
+    .stat-card.blue .stat-val { color: var(--info); }
+
+    /* Buttons */
+    .btn { padding: 8px 16px; border-radius: 8px; border: none; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px; }
+    .btn-primary { background: var(--blue); color: white; }
+    .btn-primary:hover { background: #0a2a4e; }
+    .btn-success { background: var(--success); color: white; }
+    .btn-success:hover { background: #15803d; }
+    .btn-danger { background: var(--danger); color: white; }
+    .btn-danger:hover { background: #b91c1c; }
+    .btn-outline { background: white; color: var(--navy); border: 1px solid var(--border); }
+    .btn-outline:hover { background: var(--bg); }
+    .btn-sm { padding: 5px 12px; font-size: 12px; }
+    .btn-lg { padding: 11px 24px; font-size: 15px; }
+
+    /* Table */
+    .table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); background: white; }
+    table { width: 100%; border-collapse: collapse; min-width: 900px; }
+    th { background: var(--navy); color: white; font-size: 12px; font-weight: 600; padding: 12px 14px; text-align: left; white-space: nowrap; }
+    td { padding: 12px 14px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #f8fafc; }
+    .row-link { cursor: pointer; }
+
+    /* Badges */
+    .badge { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+    .badge-new { background: #dbeafe; color: #1d4ed8; }
+    .badge-inprogress { background: #fef9c3; color: #854d0e; }
+    .badge-completed { background: #dcfce7; color: #15803d; }
+    .badge-submitted { background: #e0e7ff; color: #4338ca; }
+    .badge-won { background: #bbf7d0; color: #15803d; }
+    .badge-lost { background: #fee2e2; color: #991b1b; }
+    .badge-cancelled { background: #f3f4f6; color: #374151; }
+    .badge-awaited { background: #fef3c7; color: #92400e; }
+    .badge-overdue { background: #fee2e2; color: #991b1b; }
+    .badge-disqualified { background: #fce7f3; color: #9d174d; }
+
+    /* Filter bar */
+    .filter-bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
+    .filter-bar input, .filter-bar select {
+      padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px;
+      font-size: 13px; background: white; color: var(--text); outline: none;
+    }
+    .filter-bar input:focus, .filter-bar select:focus { border-color: var(--blue); }
+    .filter-bar input[type=text] { min-width: 220px; }
+
+    /* Form */
+    .form-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 0; border-bottom: 2px solid var(--border); }
+    .form-tab-btn { padding: 10px 16px; font-size: 12px; font-weight: 600; border: none; background: none; cursor: pointer; color: var(--muted); border-bottom: 3px solid transparent; margin-bottom: -2px; transition: all 0.2s; }
+    .form-tab-btn.active { color: var(--navy); border-bottom-color: var(--blue); }
+    .form-tab-content { display: none; padding: 24px 0 0; }
+    .form-tab-content.active { display: block; }
+
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .form-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    .form-group.full { grid-column: 1 / -1; }
+    .form-group label { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; }
+    .form-group label .req { color: var(--danger); }
+    .form-control {
+      padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px;
+      font-size: 13px; color: var(--text); background: white; outline: none;
+      transition: border 0.15s;
+    }
+    .form-control:focus { border-color: var(--blue); }
+    .form-control[readonly] { background: #f8fafc; color: var(--muted); cursor: default; }
+    .form-control.error { border-color: var(--danger); }
+    textarea.form-control { resize: vertical; min-height: 90px; }
+    .field-note { font-size: 11px; color: var(--muted); }
+    .form-section-title { font-size: 13px; font-weight: 700; color: var(--navy); margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+
+    /* Contact row */
+    .contact-row { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr auto; gap: 10px; align-items: end; margin-bottom: 10px; }
+    .add-contact-btn { display: flex; align-items: center; gap: 6px; padding: 8px 14px; border: 2px dashed var(--border); border-radius: 8px; background: white; color: var(--muted); cursor: pointer; font-size: 13px; font-weight: 500; margin-top: 8px; }
+    .add-contact-btn:hover { border-color: var(--blue); color: var(--blue); }
+    .remove-contact { background: none; border: none; color: var(--danger); cursor: pointer; font-size: 18px; padding: 4px; }
+
+    /* Document row */
+    .doc-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+    .doc-row:last-child { border-bottom: none; }
+    .doc-icon { width: 36px; height: 36px; background: #dbeafe; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+    .doc-info { flex: 1; }
+    .doc-name { font-size: 13px; font-weight: 600; }
+    .doc-meta { font-size: 11px; color: var(--muted); }
+    .upload-zone { border: 2px dashed var(--border); border-radius: 10px; padding: 32px; text-align: center; cursor: pointer; transition: all 0.2s; }
+    .upload-zone:hover { border-color: var(--blue); background: #f0f4ff; }
+    .upload-zone input { display: none; }
+
+    /* Remarks history */
+    .remark-entry { padding: 12px; border-left: 3px solid var(--blue); background: #f8fafc; border-radius: 0 8px 8px 0; margin-bottom: 10px; }
+    .remark-meta { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+    /* Status history timeline */
+    .timeline { position: relative; padding-left: 24px; }
+    .timeline::before { content: ''; position: absolute; left: 7px; top: 8px; bottom: 0; width: 2px; background: var(--border); }
+    .timeline-item { position: relative; margin-bottom: 16px; }
+    .timeline-dot { position: absolute; left: -21px; top: 4px; width: 10px; height: 10px; border-radius: 50%; background: var(--blue); border: 2px solid white; box-shadow: 0 0 0 2px var(--blue); }
+    .timeline-text { font-size: 13px; }
+    .timeline-meta { font-size: 11px; color: var(--muted); }
+
+    /* Days left pill */
+    .days-pill { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+    .days-safe { background: #dcfce7; color: #15803d; }
+    .days-warn { background: #fef9c3; color: #854d0e; }
+    .days-danger { background: #fee2e2; color: #991b1b; }
+
+    /* Empty state */
+    .empty-state { text-align: center; padding: 64px 20px; color: var(--muted); }
+    .empty-state .empty-icon { font-size: 48px; margin-bottom: 16px; }
+    .empty-state h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; color: var(--navy); }
+    .empty-state p { font-size: 13px; }
+
+    /* Loading */
+    .loading { text-align: center; padding: 48px; color: var(--muted); font-size: 14px; }
+    .spinner { display: inline-block; width: 24px; height: 24px; border: 3px solid var(--border); border-top-color: var(--blue); border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 10px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Toast */
+    .toast-wrap { position: fixed; top: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
+    .toast { padding: 12px 18px; border-radius: 10px; font-size: 13px; font-weight: 600; color: white; box-shadow: 0 4px 16px rgba(0,0,0,0.2); animation: slideIn 0.3s ease; }
+    .toast.success { background: var(--success); }
+    .toast.error { background: var(--danger); }
+    .toast.info { background: var(--info); }
+    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+    /* Modal */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 500; display: flex; align-items: center; justify-content: center; }
+    .modal { background: white; border-radius: 16px; padding: 28px; max-width: 520px; width: 90%; max-height: 90vh; overflow-y: auto; }
+    .modal h3 { font-size: 18px; font-weight: 700; margin-bottom: 16px; }
+    .modal-actions { display: flex; gap: 10px; margin-top: 20px; justify-content: flex-end; }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .form-grid, .form-grid-3 { grid-template-columns: 1fr; }
+      .form-group.full { grid-column: auto; }
+      .contact-row { grid-template-columns: 1fr 1fr; }
+      .tab-content { padding: 16px; }
+      .header { padding: 12px 16px; }
+    }
+
+    /* Table action buttons */
+    .tbl-actions { display: flex; gap: 6px; }
+    .role-badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 12px; }
+    .role-admin { background: #fee2e2; color: #991b1b; }
+    .role-bidmanager { background: #dbeafe; color: #1d4ed8; }
+    .role-branchrep { background: #dcfce7; color: #15803d; }
+    .role-spoc { background: #fce7f3; color: #9d174d; }
+    .role-readonly { background: #f3f4f6; color: #6b7280; }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════ LOGIN SCREEN ══════════════════ -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">S</div>
+    <h2>Satguru Bid Management</h2>
+    <p>Tender / Bid Management Module<br>Sign in with your @satgurutravel.com account</p>
+    <button class="google-btn" onclick="signInWithGoogle()">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+      </svg>
+      Sign in with Google
+    </button>
+    <p class="login-note">Use your satgurutravel.com email address</p>
+  </div>
+</div>
+
+<!-- ══════════════════ MAIN APP ══════════════════ -->
+<div id="app">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <div class="logo">S</div>
+      <div>
+        <div class="header h1" style="font-size:17px;font-weight:700;color:white">Tender / Bid Management</div>
+        <div class="header-sub">Satguru Travel Group</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <a href="index.html" class="home-btn">← Portal Tracker</a>
+      <div class="user-chip">
+        <div class="user-avatar" id="userAvatar">?</div>
+        <div>
+          <div class="user-name" id="userName">Loading...</div>
+          <div class="user-role" id="userRoleLabel">—</div>
+        </div>
+      </div>
+      <button class="signout-btn" onclick="signOut()">Sign Out</button>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs-bar">
+    <button class="tab-btn active" onclick="switchTab('dashboard')">Dashboard</button>
+    <button class="tab-btn" onclick="switchTab('list')">All Tenders</button>
+    <button class="tab-btn" onclick="openNewTender()">+ New Tender</button>
+    <button class="tab-btn" id="tab-btn-form" style="display:none" onclick="switchTab('form')">Edit Tender</button>
+    <button class="tab-btn" onclick="switchTab('masters')">Masters</button>
+  </div>
+
+  <!-- ── DASHBOARD ── -->
+  <div id="tab-dashboard" class="tab-content active">
+    <div class="stats-grid" id="dashStats">
+      <div class="stat-card"><div class="stat-label">Total Tenders</div><div class="stat-val" id="statTotal">—</div><div class="stat-sub">All time</div></div>
+      <div class="stat-card orange"><div class="stat-label">Due in 7 Days</div><div class="stat-val" id="statDue7">—</div><div class="stat-sub">Deadline approaching</div></div>
+      <div class="stat-card red"><div class="stat-label">Overdue</div><div class="stat-val" id="statOverdue">—</div><div class="stat-sub">Past deadline, not submitted</div></div>
+      <div class="stat-card"><div class="stat-label">Result Awaited</div><div class="stat-val" id="statAwaited">—</div><div class="stat-sub">Submitted, pending outcome</div></div>
+      <div class="stat-card green"><div class="stat-label">Won</div><div class="stat-val" id="statWon">—</div><div class="stat-sub">This year</div></div>
+      <div class="stat-card blue"><div class="stat-label">In Progress</div><div class="stat-val" id="statInProg">—</div><div class="stat-sub">Active work</div></div>
+    </div>
+
+    <!-- Overdue / Due soon table -->
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-header"><div class="card-title">⚠ Overdue / Due This Week</div></div>
+      <div class="table-wrap" style="border:none;border-radius:0">
+        <table><thead><tr><th>Tender ID</th><th>Client</th><th>Branch</th><th>Deadline</th><th>Days Left</th><th>Assigned To</th><th>Work Status</th></tr></thead>
+        <tbody id="dashOverdueBody"><tr><td colspan="7"><div class="loading"><span class="spinner"></span>Loading...</div></td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Result awaiting -->
+    <div class="card">
+      <div class="card-header"><div class="card-title">⏳ Result Awaited — Follow Up Required</div></div>
+      <div class="table-wrap" style="border:none;border-radius:0">
+        <table><thead><tr><th>Tender ID</th><th>Client</th><th>Branch</th><th>Submitted</th><th>Expected Result</th><th>Marketing SPOC</th><th>Result Status</th></tr></thead>
+        <tbody id="dashAwaitedBody"><tr><td colspan="7"><div class="loading"><span class="spinner"></span>Loading...</div></td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ALL TENDERS LIST ── -->
+  <div id="tab-list" class="tab-content">
+    <div class="filter-bar">
+      <input type="text" id="listSearch" placeholder="Search ID, client, description..." oninput="renderList()"/>
+      <select id="filterBranch" onchange="renderList()"><option value="">All Branches</option></select>
+      <select id="filterWorkStatus" onchange="renderList()">
+        <option value="">Work Status</option>
+        <option>Not Started</option><option>In Process</option><option>On Hold</option><option>Completed</option><option>Cancelled</option>
+      </select>
+      <select id="filterSubStatus" onchange="renderList()">
+        <option value="">Submission Status</option>
+        <option>Pending</option><option>Submitted</option><option>Not Submitted</option><option>Delayed</option><option>Extended</option>
+      </select>
+      <select id="filterResultStatus" onchange="renderList()">
+        <option value="">Result Status</option>
+        <option>Result Awaited</option><option>Won</option><option>Lost</option><option>Cancelled</option><option>Disqualified</option><option>Not Participated</option>
+      </select>
+      <select id="filterBidType" onchange="renderList()"><option value="">Bid Type</option><option>RFP</option><option>RFQ</option><option>EOI</option><option>SR</option><option>Tender</option></select>
+      <button class="btn btn-outline btn-sm" onclick="clearFilters()">Clear</button>
+      <button class="btn btn-outline btn-sm" onclick="exportExcel()">Export Excel</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Tender ID</th><th>Date</th><th>Client</th><th>Branch</th><th>Bid Type</th>
+            <th>Deadline</th><th>Days Left</th><th>Work Status</th><th>Submission</th>
+            <th>Result</th><th>Assigned To</th><th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="listBody">
+          <tr><td colspan="12"><div class="loading"><span class="spinner"></span>Loading tenders...</div></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div style="margin-top:10px;font-size:12px;color:var(--muted)" id="listCount"></div>
+  </div>
+
+  <!-- ── TENDER FORM ── -->
+  <div id="tab-form" class="tab-content">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <div>
+        <h2 style="font-size:18px;font-weight:700" id="formTitle">New Tender</h2>
+        <div style="font-size:12px;color:var(--muted)" id="formTenderId"></div>
+      </div>
+      <div style="display:flex;gap:10px">
+        <button class="btn btn-outline" onclick="switchTab('list')">Cancel</button>
+        <button class="btn btn-primary btn-lg" onclick="saveTender()">Save Tender</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="form-tabs" id="formTabs">
+        <button class="form-tab-btn active" onclick="switchFormTab('basic')">1. Basic Details</button>
+        <button class="form-tab-btn" onclick="switchFormTab('scope')">2. Scope & Commercial</button>
+        <button class="form-tab-btn" onclick="switchFormTab('ownership')">3. Ownership & Timeline</button>
+        <button class="form-tab-btn" onclick="switchFormTab('submission')">4. Submission & Result</button>
+        <button class="form-tab-btn" onclick="switchFormTab('contract')">5. Contract Details</button>
+        <button class="form-tab-btn" onclick="switchFormTab('contacts')">6. Contacts</button>
+        <button class="form-tab-btn" onclick="switchFormTab('documents')">7. Documents</button>
+        <button class="form-tab-btn" onclick="switchFormTab('remarks')">8. Remarks</button>
+        <button class="form-tab-btn" onclick="switchFormTab('history')" id="historyTabBtn">9. History</button>
+      </div>
+      <div class="card-body">
+
+        <!-- Tab 1: Basic Details -->
+        <div class="form-tab-content active" id="ftab-basic">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Tender ID (Auto) <span class="req">*</span></label>
+              <input class="form-control" id="f_tender_unique_id" readonly placeholder="Auto-generated on save"/>
+            </div>
+            <div class="form-group">
+              <label>Date Created</label>
+              <input class="form-control" id="f_date_created" readonly/>
+            </div>
+            <div class="form-group">
+              <label>Tender Source <span class="req">*</span></label>
+              <select class="form-control" id="f_tender_source">
+                <option value="">— Select —</option>
+                <option>Branch</option><option>Portal</option><option>Email</option><option>Client Direct</option><option>Website</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Mode <span class="req">*</span></label>
+              <select class="form-control" id="f_mode">
+                <option value="">— Select —</option>
+                <option>Branch</option><option>Email</option><option>Online Portal</option><option>Physical</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Notification Received Date <span class="req">*</span></label>
+              <input type="date" class="form-control" id="f_notification_received_date"/>
+            </div>
+            <div class="form-group">
+              <label>Bid Type <span class="req">*</span></label>
+              <select class="form-control" id="f_bid_type">
+                <option value="">— Select —</option>
+                <option>RFP</option><option>RFQ</option><option>EOI</option><option>SR</option><option>Tender</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Customer / Client Name <span class="req">*</span></label>
+              <input class="form-control" id="f_customer_name" placeholder="Client name as per bid document"/>
+            </div>
+            <div class="form-group">
+              <label>Tender Reference ID</label>
+              <input class="form-control" id="f_tender_reference_id" placeholder="Ref number from client/portal"/>
+            </div>
+            <div class="form-group">
+              <label>Global Client Name</label>
+              <input class="form-control" id="f_global_client_name" placeholder="Parent company or global name if applicable"/>
+            </div>
+            <div class="form-group">
+              <label>NCA / ERV</label>
+              <select class="form-control" id="f_nca_erv">
+                <option value="">— Select —</option>
+                <option>NCA</option><option>ERV</option><option>Both</option><option>Not Applicable</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 2: Scope & Commercial -->
+        <div class="form-tab-content" id="ftab-scope">
+          <div class="form-group full" style="margin-bottom:16px">
+            <label>BID Description <span class="req">*</span></label>
+            <textarea class="form-control" id="f_bid_description" rows="4" placeholder="Describe the scope of services required in this tender..."></textarea>
+          </div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Air & Non Air Commodity / Cargo <span class="req">*</span></label>
+              <select class="form-control" id="f_commodity_type">
+                <option value="">— Select —</option>
+                <option>Air</option><option>Non Air</option><option>Air & Non Air</option><option>Car</option><option>Hotel</option><option>Cargo</option><option>MICE</option><option>Visa</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Potential Amount (USD)</label>
+              <input type="number" class="form-control" id="f_potential_amount_usd" placeholder="0.00" step="0.01"/>
+            </div>
+            <div class="form-group">
+              <label>Branch Code <span class="req">*</span></label>
+              <select class="form-control" id="f_branch_code" onchange="loadMarketingPersons()">
+                <option value="">— Select Branch —</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Domain Name</label>
+              <select class="form-control" id="f_domain_name">
+                <option value="">— Select —</option>
+                <option>STTS</option><option>STC</option><option>STL</option><option>Other</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 3: Ownership & Timeline -->
+        <div class="form-tab-content" id="ftab-ownership">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Created By</label>
+              <input class="form-control" id="f_created_by_name" readonly/>
+            </div>
+            <div class="form-group">
+              <label>Assigned To <span class="req">*</span></label>
+              <input class="form-control" id="f_assigned_to" placeholder="Name of person responsible"/>
+            </div>
+            <div class="form-group">
+              <label>Deadline <span class="req">*</span></label>
+              <input type="date" class="form-control" id="f_deadline" onchange="calcDaysLeft()"/>
+            </div>
+            <div class="form-group">
+              <label>Days Left (Auto-calculated)</label>
+              <input class="form-control" id="f_days_left" readonly/>
+            </div>
+            <div class="form-group">
+              <label>Start Date</label>
+              <input type="date" class="form-control" id="f_start_date"/>
+            </div>
+            <div class="form-group">
+              <label>Finished Date</label>
+              <input type="date" class="form-control" id="f_finished_date"/>
+            </div>
+            <div class="form-group">
+              <label>Completed %</label>
+              <input type="number" class="form-control" id="f_completed_percentage" min="0" max="100" placeholder="0–100"/>
+            </div>
+            <div class="form-group">
+              <label>Work Status <span class="req">*</span></label>
+              <select class="form-control" id="f_work_status">
+                <option value="">— Select —</option>
+                <option>Not Started</option><option>In Process</option><option>On Hold</option><option>Completed</option><option>Cancelled</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Marketing Person / Branch SPOC</label>
+              <select class="form-control" id="f_marketing_person_spoc_id">
+                <option value="">— Select Branch First —</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 4: Submission & Result -->
+        <div class="form-tab-content" id="ftab-submission">
+          <div class="form-section-title">Submission Details</div>
+          <div class="form-grid" style="margin-bottom:24px">
+            <div class="form-group">
+              <label>Submission Status</label>
+              <select class="form-control" id="f_submission_status">
+                <option value="">— Select —</option>
+                <option>Pending</option><option>Submitted</option><option>Not Submitted</option><option>Delayed</option><option>Extended</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Date of Submission</label>
+              <input type="date" class="form-control" id="f_submission_date"/>
+            </div>
+            <div class="form-group">
+              <label>Submitted To</label>
+              <input class="form-control" id="f_submitted_to" placeholder="Person or authority"/>
+            </div>
+            <div class="form-group">
+              <label>Submission Type</label>
+              <select class="form-control" id="f_submission_type">
+                <option value="">— Select —</option>
+                <option>Email</option><option>Portal</option><option>Physical</option><option>Courier</option><option>Upload Link</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Submission Address / Email / URL</label>
+              <input class="form-control" id="f_submission_address" placeholder="Email address, URL or physical address"/>
+            </div>
+            <div class="form-group">
+              <label>Submission Route <span class="req">*</span></label>
+              <select class="form-control" id="f_submission_route">
+                <option value="">— Select —</option>
+                <option>Branch Submission to Client</option>
+                <option>Direct Submission by Bid Team</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Submitted By</label>
+              <input class="form-control" id="f_submitted_by" placeholder="Name / user who submitted"/>
+            </div>
+          </div>
+
+          <div class="form-section-title">Result Details</div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Expected Result Date</label>
+              <input type="date" class="form-control" id="f_expected_result_date"/>
+            </div>
+            <div class="form-group">
+              <label>Tender Result Status</label>
+              <select class="form-control" id="f_tender_result_status">
+                <option value="">— Select —</option>
+                <option>Result Awaited</option><option>Won</option><option>Lost</option>
+                <option>Cancelled</option><option>Disqualified</option><option>Not Participated</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Won Date</label>
+              <input type="date" class="form-control" id="f_won_date"/>
+            </div>
+            <div class="form-group">
+              <label>Lost Reason</label>
+              <input class="form-control" id="f_lost_reason" placeholder="Reason for losing if applicable"/>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 5: Contract -->
+        <div class="form-tab-content" id="ftab-contract">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Potential Contract Period</label>
+              <input class="form-control" id="f_potential_contract_period" placeholder="e.g. 1 year, 3+2 years"/>
+            </div>
+            <div class="form-group">
+              <label>Potential Contract Period (Months)</label>
+              <input type="number" class="form-control" id="f_potential_contract_period_months" placeholder="12" onchange="calcContractEnd()"/>
+            </div>
+            <div class="form-group">
+              <label>Potential Start Date</label>
+              <input type="date" class="form-control" id="f_potential_start_date" onchange="calcContractEnd()"/>
+            </div>
+            <div class="form-group">
+              <label>Potential End Date (Auto / Editable)</label>
+              <input type="date" class="form-control" id="f_potential_end_date"/>
+              <span class="field-note">Auto-calculated from start date + months; you can also edit manually</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 6: Contacts -->
+        <div class="form-tab-content" id="ftab-contacts">
+          <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Add one or more contact persons for this tender.</p>
+          <div id="contactsContainer"></div>
+          <button class="add-contact-btn" onclick="addContact()">+ Add Contact</button>
+        </div>
+
+        <!-- Tab 7: Documents -->
+        <div class="form-tab-content" id="ftab-documents">
+          <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Upload documents related to this tender. Max 10MB per file.</p>
+          <div class="form-group" style="max-width:320px;margin-bottom:16px">
+            <label>Document Category</label>
+            <select class="form-control" id="docCategory">
+              <option value="">— Select Category —</option>
+              <option>Tender Notice</option>
+              <option>RFP / RFQ / EOI Document</option>
+              <option>Technical Proposal</option>
+              <option>Financial Proposal</option>
+              <option>Compliance Documents</option>
+              <option>EMD / Tender Fee Proof</option>
+              <option>Clarifications</option>
+              <option>Submission Proof</option>
+              <option>Award Letter</option>
+              <option>Contract Copy</option>
+              <option>Others</option>
+            </select>
+          </div>
+          <label class="upload-zone" for="docFileInput">
+            <input type="file" id="docFileInput" multiple onchange="handleFileUpload(this)"/>
+            <div style="font-size:32px;margin-bottom:8px">📁</div>
+            <div style="font-weight:600;margin-bottom:4px">Click to upload or drag & drop</div>
+            <div style="font-size:12px;color:var(--muted)">PDF, DOCX, XLSX, JPG, PNG — Max 10MB each</div>
+          </label>
+          <div id="docsContainer" style="margin-top:16px"></div>
+        </div>
+
+        <!-- Tab 8: Remarks -->
+        <div class="form-tab-content" id="ftab-remarks">
+          <div class="form-group full" style="margin-bottom:16px">
+            <label>Add New Remark</label>
+            <textarea class="form-control" id="f_new_remark" rows="3" placeholder="Enter a remark or note about this tender..."></textarea>
+          </div>
+          <div id="remarksHistory" style="margin-top:16px">
+            <div style="font-size:13px;font-weight:600;color:var(--muted);margin-bottom:10px">Remark History</div>
+          </div>
+        </div>
+
+        <!-- Tab 9: History -->
+        <div class="form-tab-content" id="ftab-history">
+          <div style="font-size:13px;font-weight:600;color:var(--muted);margin-bottom:16px">Status & Audit History</div>
+          <div id="historyContainer" class="timeline"></div>
+        </div>
+
+      </div><!-- card-body -->
+    </div><!-- card -->
+  </div>
+
+  <!-- ── MASTERS ── -->
+  <div id="tab-masters" class="tab-content">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+      <!-- Branches -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Branches</div>
+          <button class="btn btn-primary btn-sm" onclick="openMasterModal('branch')">+ Add</button>
+        </div>
+        <div class="card-body" style="padding:0">
+          <table><thead><tr><th>Code</th><th>City</th><th>Country</th><th>Active</th><th></th></tr></thead>
+          <tbody id="masterBranches"></tbody></table>
+        </div>
+      </div>
+      <!-- Marketing Persons -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Marketing Persons / SPOCs</div>
+          <button class="btn btn-primary btn-sm" onclick="openMasterModal('marketing')">+ Add</button>
+        </div>
+        <div class="card-body" style="padding:0">
+          <table><thead><tr><th>Name</th><th>Branch</th><th>Email</th><th>Active</th><th></th></tr></thead>
+          <tbody id="masterMarketing"></tbody></table>
+        </div>
+      </div>
+      <!-- Users -->
+      <div class="card" style="grid-column:1/-1">
+        <div class="card-header">
+          <div class="card-title">System Users & Roles</div>
+          <div style="font-size:12px;color:var(--muted)">Users appear after first login. Assign roles below.</div>
+        </div>
+        <div class="card-body" style="padding:0">
+          <table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Branch</th><th>Active</th><th>Actions</th></tr></thead>
+          <tbody id="masterUsers"></tbody></table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- #app -->
+
+<!-- Toast container -->
+<div class="toast-wrap" id="toastWrap"></div>
+
+<!-- Master modal -->
+<div id="masterModal" style="display:none">
+  <div class="modal-overlay" onclick="closeMasterModal()">
+    <div class="modal" onclick="event.stopPropagation()">
+      <h3 id="masterModalTitle">Add Record</h3>
+      <div id="masterModalBody"></div>
+      <div class="modal-actions">
+        <button class="btn btn-outline" onclick="closeMasterModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveMasterRecord()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+// FIREBASE CONFIG — Replace these values from your Firebase console
+// ══════════════════════════════════════════════════════════════
+const firebaseConfig = {
+  apiKey: "AIzaSyDTbvj5B1uwWxBVnPCjnVscodiB9Uyxdgw",
+  authDomain: "satguru-sales-intel.firebaseapp.com",
+  projectId: "satguru-sales-intel",
+  storageBucket: "satguru-sales-intel.firebasestorage.app",
+  messagingSenderId: "309310310208",
+  appId: "1:309310310208:web:51f3a7878014c2108f1ca5"
+};
+// ══════════════════════════════════════════════════════════════
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db   = firebase.firestore();
+const storage = firebase.storage();
+
+let currentUser = null;
+let currentUserProfile = null;
+let allTenders = [];
+let editingTenderId = null;
+let pendingDocuments = []; // docs queued for upload on new tender
+let masterModalType = null;
+
+// ── Auth ─────────────────────────────────────────────────────
+auth.onAuthStateChanged(async user => {
+  if (user) {
+    currentUser = user;
+    await ensureUserProfile(user);
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'flex';
+    document.getElementById('app').style.flexDirection = 'column';
+
+    // Set header
+    const profile = currentUserProfile;
+    const av = document.getElementById('userAvatar');
+    if (user.photoURL) av.innerHTML = `<img src="${user.photoURL}"/>`;
+    else av.textContent = (user.displayName || 'U').charAt(0).toUpperCase();
+    document.getElementById('userName').textContent = user.displayName || user.email;
+    document.getElementById('userRoleLabel').textContent = ROLE_LABELS[profile?.role] || 'User';
+
+    loadAllData();
+  } else {
+    currentUser = null;
+    currentUserProfile = null;
+    document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('app').style.display = 'none';
+  }
+});
+
+async function ensureUserProfile(user) {
+  const ref = db.collection('users').doc(user.uid);
+  const snap = await ref.get();
+  if (!snap.exists) {
+    const newProfile = {
+      email: user.email,
+      name: user.displayName || user.email,
+      role: 'readonly',  // default role — Admin can change
+      branch_code: '',
+      active: true,
+      created_at: firebase.firestore.FieldValue.serverTimestamp()
+    };
+    await ref.set(newProfile);
+    currentUserProfile = newProfile;
+  } else {
+    currentUserProfile = snap.data();
+  }
+}
+
+function signInWithGoogle() {
+  const provider = new firebase.auth.GoogleAuthProvider();
+  provider.setCustomParameters({ hd: 'satgurutravel.com' });
+  auth.signInWithPopup(provider).catch(e => toast('Login failed: ' + e.message, 'error'));
+}
+
+function signOut() {
+  if (confirm('Sign out?')) auth.signOut();
+}
+
+// ── Roles ────────────────────────────────────────────────────
+const ROLE_LABELS = {
+  admin: 'System Admin',
+  bidmanager: 'Bid Manager',
+  branchrep: 'Branch Bid Representative',
+  spoc: 'Branch SPOC / Marketing',
+  finance: 'Finance User',
+  branchmanager: 'Branch Manager',
+  management: 'Management User',
+  readonly: 'Read Only'
+};
+const ROLES = Object.keys(ROLE_LABELS);
+
+function canCreate() { return ['admin','bidmanager','branchrep'].includes(currentUserProfile?.role); }
+function canEdit(tender) {
+  const role = currentUserProfile?.role;
+  if (['admin','bidmanager'].includes(role)) return true;
+  if (role === 'branchrep' && tender?.branch_code === currentUserProfile?.branch_code) return true;
+  if (role === 'spoc' && tender?.branch_code === currentUserProfile?.branch_code) return true; // limited fields
+  return false;
+}
+function canManageMasters() { return currentUserProfile?.role === 'admin'; }
+
+// ── Data loading ──────────────────────────────────────────────
+async function loadAllData() {
+  await loadTenders();
+  renderDashboard();
+  renderList();
+  loadBranchesIntoSelects();
+  loadMasters();
+}
+
+async function loadTenders() {
+  try {
+    const snap = await db.collection('tenders').orderBy('created_at', 'desc').get();
+    allTenders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    // auto-update days_left
+    allTenders.forEach(t => { t.days_left = calcDaysLeftVal(t.deadline); });
+  } catch (e) {
+    console.error('loadTenders', e);
+    toast('Error loading tenders: ' + e.message, 'error');
+  }
+}
+
+function calcDaysLeftVal(deadline) {
+  if (!deadline) return null;
+  const d = new Date(deadline);
+  const today = new Date(); today.setHours(0,0,0,0); d.setHours(0,0,0,0);
+  return Math.ceil((d - today) / 86400000);
+}
+
+// ── Tabs ──────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    if (b.getAttribute('onclick') === `switchTab('${name}')`) b.classList.add('active');
+  });
+  if (name === 'dashboard') renderDashboard();
+  if (name === 'list') renderList();
+  if (name === 'masters') loadMasters();
+}
+
+// ── Dashboard ─────────────────────────────────────────────────
+function renderDashboard() {
+  const now = new Date(); now.setHours(0,0,0,0);
+  const in7 = new Date(now); in7.setDate(in7.getDate() + 7);
+
+  const total = allTenders.length;
+  const due7 = allTenders.filter(t => {
+    if (!t.deadline) return false;
+    const d = new Date(t.deadline); d.setHours(0,0,0,0);
+    return d >= now && d <= in7 && !['Submitted','Not Submitted'].includes(t.submission_status);
+  }).length;
+  const overdue = allTenders.filter(t => {
+    if (!t.deadline) return false;
+    const d = new Date(t.deadline); d.setHours(0,0,0,0);
+    return d < now && !['Submitted','Not Submitted','Cancelled'].includes(t.submission_status);
+  }).length;
+  const awaited = allTenders.filter(t => t.tender_result_status === 'Result Awaited').length;
+  const won = allTenders.filter(t => t.tender_result_status === 'Won').length;
+  const inprog = allTenders.filter(t => t.work_status === 'In Process').length;
+
+  document.getElementById('statTotal').textContent = total;
+  document.getElementById('statDue7').textContent = due7;
+  document.getElementById('statOverdue').textContent = overdue;
+  document.getElementById('statAwaited').textContent = awaited;
+  document.getElementById('statWon').textContent = won;
+  document.getElementById('statInProg').textContent = inprog;
+
+  // Overdue/due soon table
+  const overdueList = allTenders.filter(t => {
+    if (!t.deadline) return false;
+    const d = new Date(t.deadline); d.setHours(0,0,0,0);
+    return d <= in7 && !['Submitted','Cancelled'].includes(t.submission_status);
+  }).sort((a,b) => new Date(a.deadline) - new Date(b.deadline)).slice(0,10);
+
+  document.getElementById('dashOverdueBody').innerHTML = overdueList.length
+    ? overdueList.map(t => `<tr class="row-link" onclick="openEditTender('${t.id}')">
+        <td><b>${t.tender_unique_id || '—'}</b></td>
+        <td>${esc(t.customer_name)}</td>
+        <td>${esc(t.branch_code)}</td>
+        <td>${fmt(t.deadline)}</td>
+        <td>${daysPill(t.days_left)}</td>
+        <td>${esc(t.assigned_to)}</td>
+        <td>${workBadge(t.work_status)}</td>
+      </tr>`).join('')
+    : '<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">✅</div><h3>No overdue or urgent tenders</h3></div></td></tr>';
+
+  // Result awaited table
+  const awaitedList = allTenders.filter(t => t.tender_result_status === 'Result Awaited').slice(0,10);
+  document.getElementById('dashAwaitedBody').innerHTML = awaitedList.length
+    ? awaitedList.map(t => `<tr class="row-link" onclick="openEditTender('${t.id}')">
+        <td><b>${t.tender_unique_id || '—'}</b></td>
+        <td>${esc(t.customer_name)}</td>
+        <td>${esc(t.branch_code)}</td>
+        <td>${fmt(t.submission_date)}</td>
+        <td>${fmt(t.expected_result_date)}</td>
+        <td>${esc(t.marketing_person_spoc_name || '')}</td>
+        <td>${resultBadge(t.tender_result_status)}</td>
+      </tr>`).join('')
+    : '<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">📭</div><h3>No tenders awaiting result</h3></div></td></tr>';
+}
+
+// ── Tender List ───────────────────────────────────────────────
+function renderList() {
+  const search = (document.getElementById('listSearch')?.value || '').toLowerCase();
+  const branch = document.getElementById('filterBranch')?.value || '';
+  const ws = document.getElementById('filterWorkStatus')?.value || '';
+  const ss = document.getElementById('filterSubStatus')?.value || '';
+  const rs = document.getElementById('filterResultStatus')?.value || '';
+  const bt = document.getElementById('filterBidType')?.value || '';
+
+  let filtered = allTenders.filter(t => {
+    if (branch && t.branch_code !== branch) return false;
+    if (ws && t.work_status !== ws) return false;
+    if (ss && t.submission_status !== ss) return false;
+    if (rs && t.tender_result_status !== rs) return false;
+    if (bt && t.bid_type !== bt) return false;
+    if (search) {
+      const hay = [t.tender_unique_id, t.customer_name, t.bid_description, t.tender_reference_id, t.assigned_to].join(' ').toLowerCase();
+      if (!hay.includes(search)) return false;
+    }
+    return true;
+  });
+
+  document.getElementById('listCount').textContent = `Showing ${filtered.length} of ${allTenders.length} tenders`;
+
+  if (!filtered.length) {
+    document.getElementById('listBody').innerHTML = `<tr><td colspan="12"><div class="empty-state"><div class="empty-icon">🔍</div><h3>No tenders found</h3><p>Try adjusting your filters or <button class="btn btn-primary btn-sm" onclick="openNewTender()">create a new tender</button></p></div></td></tr>`;
+    return;
+  }
+
+  document.getElementById('listBody').innerHTML = filtered.map(t => `
+    <tr class="row-link" onclick="openEditTender('${t.id}')">
+      <td><b>${t.tender_unique_id || '—'}</b></td>
+      <td>${fmt(t.date_created)}</td>
+      <td style="max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(t.customer_name)}">${esc(t.customer_name)}</td>
+      <td>${esc(t.branch_code)}</td>
+      <td>${esc(t.bid_type)}</td>
+      <td>${fmt(t.deadline)}</td>
+      <td>${daysPill(t.days_left)}</td>
+      <td>${workBadge(t.work_status)}</td>
+      <td>${subBadge(t.submission_status)}</td>
+      <td>${resultBadge(t.tender_result_status)}</td>
+      <td>${esc(t.assigned_to)}</td>
+      <td><div class="tbl-actions" onclick="event.stopPropagation()">
+        <button class="btn btn-outline btn-sm" onclick="openEditTender('${t.id}')">Edit</button>
+        ${canEdit(t) ? `<button class="btn btn-danger btn-sm" onclick="deleteTender('${t.id}')">Del</button>` : ''}
+      </div></td>
+    </tr>`).join('');
+}
+
+function clearFilters() {
+  ['listSearch','filterBranch','filterWorkStatus','filterSubStatus','filterResultStatus','filterBidType'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  renderList();
+}
+
+// ── Tender Form ───────────────────────────────────────────────
+function switchFormTab(name) {
+  document.querySelectorAll('.form-tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.form-tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('ftab-' + name).classList.add('active');
+  event.target.classList.add('active');
+}
+
+function openNewTender() {
+  if (!canCreate()) { toast('You do not have permission to create tenders', 'error'); return; }
+  editingTenderId = null;
+  pendingDocuments = [];
+  resetForm();
+  document.getElementById('formTitle').textContent = 'New Tender';
+  document.getElementById('formTenderId').textContent = 'ID will be auto-generated on save';
+  document.getElementById('f_date_created').value = new Date().toISOString().slice(0,10);
+  document.getElementById('f_created_by_name').value = currentUser.displayName || currentUser.email;
+
+  // Pre-fill branch for branch rep
+  if (currentUserProfile?.branch_code) {
+    document.getElementById('f_branch_code').value = currentUserProfile.branch_code;
+    loadMarketingPersons();
+  }
+
+  document.getElementById('tab-btn-form').style.display = 'none';
+  switchTab('form');
+  // start on first tab
+  document.querySelector('.form-tab-btn').click();
+}
+
+async function openEditTender(id) {
+  const t = allTenders.find(x => x.id === id);
+  if (!t) { toast('Tender not found', 'error'); return; }
+
+  editingTenderId = id;
+  pendingDocuments = [];
+  resetForm();
+  document.getElementById('formTitle').textContent = 'Edit Tender — ' + (t.customer_name || '');
+  document.getElementById('formTenderId').textContent = 'ID: ' + (t.tender_unique_id || id);
+  document.getElementById('tab-btn-form').style.display = '';
+  document.getElementById('tab-btn-form').textContent = 'Edit: ' + (t.tender_unique_id || '');
+
+  // Populate all fields
+  const fields = [
+    'tender_unique_id','date_created','tender_source','mode','notification_received_date',
+    'bid_type','customer_name','tender_reference_id','global_client_name','nca_erv',
+    'bid_description','commodity_type','potential_amount_usd','branch_code','domain_name',
+    'created_by_name','assigned_to','deadline','days_left','start_date','finished_date',
+    'completed_percentage','work_status','marketing_person_spoc_id',
+    'submission_status','submission_date','submitted_to','submission_type','submission_address',
+    'submission_route','submitted_by','expected_result_date','tender_result_status','won_date','lost_reason',
+    'potential_contract_period','potential_contract_period_months','potential_start_date','potential_end_date'
+  ];
+  fields.forEach(f => {
+    const el = document.getElementById('f_' + f);
+    if (el && t[f] !== undefined && t[f] !== null) el.value = t[f];
+  });
+
+  // Marketing persons for branch
+  await loadMarketingPersons();
+  if (t.marketing_person_spoc_id) document.getElementById('f_marketing_person_spoc_id').value = t.marketing_person_spoc_id;
+
+  // Days left recalc
+  calcDaysLeft();
+
+  // Contacts
+  renderContacts(t.contacts || []);
+
+  // Remarks
+  renderRemarks(t.remarks_history || [], t.remarks || '');
+
+  // Documents
+  renderDocuments(t.documents || []);
+
+  // History
+  renderHistory(t.status_history || []);
+
+  switchTab('form');
+  document.querySelector('.form-tab-btn').click();
+}
+
+function resetForm() {
+  const inputs = document.querySelectorAll('#tab-form .form-control, #tab-form textarea, #tab-form select');
+  inputs.forEach(el => { if (!el.readOnly) el.value = ''; });
+  document.getElementById('contactsContainer').innerHTML = '';
+  document.getElementById('docsContainer').innerHTML = '';
+  document.getElementById('remarksHistory').innerHTML = '<div style="font-size:13px;font-weight:600;color:var(--muted);margin-bottom:10px">Remark History</div>';
+  document.getElementById('historyContainer').innerHTML = '';
+  document.getElementById('f_new_remark').value = '';
+}
+
+// ── Save Tender ───────────────────────────────────────────────
+async function saveTender() {
+  // Collect all form fields
+  const getString = id => (document.getElementById('f_' + id)?.value || '').trim();
+  const getNum   = id => parseFloat(document.getElementById('f_' + id)?.value) || 0;
+
+  // Validation
+  const required = ['tender_source','mode','notification_received_date','bid_type','customer_name','bid_description','commodity_type','branch_code','assigned_to','deadline','work_status'];
+  for (const f of required) {
+    if (!getString(f)) {
+      toast('Please fill: ' + f.replace(/_/g,' '), 'error');
+      return;
+    }
+  }
+
+  const data = {
+    tender_source: getString('tender_source'),
+    mode: getString('mode'),
+    notification_received_date: getString('notification_received_date'),
+    bid_type: getString('bid_type'),
+    customer_name: getString('customer_name'),
+    tender_reference_id: getString('tender_reference_id'),
+    global_client_name: getString('global_client_name'),
+    nca_erv: getString('nca_erv'),
+    bid_description: getString('bid_description'),
+    commodity_type: getString('commodity_type'),
+    potential_amount_usd: getNum('potential_amount_usd'),
+    branch_code: getString('branch_code'),
+    domain_name: getString('domain_name'),
+    assigned_to: getString('assigned_to'),
+    deadline: getString('deadline'),
+    days_left: calcDaysLeftVal(getString('deadline')),
+    start_date: getString('start_date'),
+    finished_date: getString('finished_date'),
+    completed_percentage: getNum('completed_percentage'),
+    work_status: getString('work_status'),
+    marketing_person_spoc_id: getString('marketing_person_spoc_id'),
+    marketing_person_spoc_name: document.getElementById('f_marketing_person_spoc_id')?.options[document.getElementById('f_marketing_person_spoc_id')?.selectedIndex]?.text || '',
+    submission_status: getString('submission_status'),
+    submission_date: getString('submission_date'),
+    submitted_to: getString('submitted_to'),
+    submission_type: getString('submission_type'),
+    submission_address: getString('submission_address'),
+    submission_route: getString('submission_route'),
+    submitted_by: getString('submitted_by'),
+    expected_result_date: getString('expected_result_date'),
+    tender_result_status: getString('tender_result_status'),
+    won_date: getString('won_date'),
+    lost_reason: getString('lost_reason'),
+    potential_contract_period: getString('potential_contract_period'),
+    potential_contract_period_months: getNum('potential_contract_period_months'),
+    potential_start_date: getString('potential_start_date'),
+    potential_end_date: getString('potential_end_date'),
+    contacts: collectContacts(),
+    updated_at: firebase.firestore.FieldValue.serverTimestamp(),
+    updated_by: currentUser.uid,
+    updated_by_name: currentUser.displayName || currentUser.email,
+  };
+
+  // Remarks
+  const newRemark = document.getElementById('f_new_remark').value.trim();
+  if (newRemark) {
+    const existing = editingTenderId ? (allTenders.find(t => t.id === editingTenderId)?.remarks_history || []) : [];
+    data.remarks_history = [{
+      text: newRemark,
+      by: currentUser.displayName || currentUser.email,
+      at: new Date().toISOString()
+    }, ...existing];
+    data.remarks = newRemark;
+  }
+
+  // Status history entry
+  const historyEntry = {
+    action: editingTenderId ? 'Updated' : 'Created',
+    work_status: data.work_status,
+    submission_status: data.submission_status,
+    result_status: data.tender_result_status,
+    by: currentUser.displayName || currentUser.email,
+    at: new Date().toISOString()
+  };
+
+  if (editingTenderId) {
+    const prev = allTenders.find(t => t.id === editingTenderId);
+    data.status_history = [historyEntry, ...(prev?.status_history || [])].slice(0, 50);
+    try {
+      await db.collection('tenders').doc(editingTenderId).update(data);
+      toast('Tender updated successfully', 'success');
+    } catch (e) { toast('Error saving: ' + e.message, 'error'); return; }
+  } else {
+    // New tender
+    data.date_created = new Date().toISOString().slice(0, 10);
+    data.created_by = currentUser.uid;
+    data.created_by_name = currentUser.displayName || currentUser.email;
+    data.created_at = firebase.firestore.FieldValue.serverTimestamp();
+    data.documents = [];
+    data.status_history = [historyEntry];
+
+    // Auto-generate tender ID
+    try {
+      const countSnap = await db.collection('meta').doc('counters').get();
+      const n = ((countSnap.exists ? countSnap.data().tender_seq : 0) || 0) + 1;
+      await db.collection('meta').doc('counters').set({ tender_seq: n }, { merge: true });
+      data.tender_unique_id = '#T_' + String(n).padStart(5, '0');
+    } catch (e) { data.tender_unique_id = '#T_' + Date.now(); }
+
+    try {
+      const ref = await db.collection('tenders').add(data);
+      editingTenderId = ref.id;
+      toast('Tender created: ' + data.tender_unique_id, 'success');
+    } catch (e) { toast('Error creating: ' + e.message, 'error'); return; }
+  }
+
+  // Upload pending documents
+  if (pendingDocuments.length > 0) {
+    toast('Uploading ' + pendingDocuments.length + ' document(s)...', 'info');
+    await uploadPendingDocs(editingTenderId);
+  }
+
+  await loadTenders();
+  renderList();
+  renderDashboard();
+  document.getElementById('formTenderId').textContent = 'ID: ' + (data.tender_unique_id || '');
+  document.getElementById('tab-btn-form').style.display = '';
+}
+
+// ── Contacts ──────────────────────────────────────────────────
+let contactCount = 0;
+function addContact(data = {}) {
+  const i = contactCount++;
+  const div = document.createElement('div');
+  div.className = 'contact-row';
+  div.id = 'contact_' + i;
+  div.innerHTML = `
+    <div class="form-group"><label>Name</label><input class="form-control" id="cn_name_${i}" value="${esc(data.name||'')}" placeholder="Contact name"/></div>
+    <div class="form-group"><label>Mobile</label><input class="form-control" id="cn_mobile_${i}" value="${esc(data.mobile||'')}" placeholder="+971-..."/></div>
+    <div class="form-group"><label>Email</label><input class="form-control" id="cn_email_${i}" value="${esc(data.email||'')}" placeholder="email@..."/></div>
+    <div class="form-group"><label>Location</label><input class="form-control" id="cn_location_${i}" value="${esc(data.location||'')}" placeholder="City/Country"/></div>
+    <div><button class="remove-contact" onclick="removeContact(${i})">✕</button></div>
+  `;
+  document.getElementById('contactsContainer').appendChild(div);
+}
+function removeContact(i) { document.getElementById('contact_' + i)?.remove(); }
+function renderContacts(contacts) {
+  document.getElementById('contactsContainer').innerHTML = '';
+  contactCount = 0;
+  contacts.forEach(c => addContact(c));
+}
+function collectContacts() {
+  return Array.from(document.getElementById('contactsContainer').querySelectorAll('.contact-row')).map(row => {
+    const i = row.id.split('_')[1];
+    return {
+      name: document.getElementById('cn_name_' + i)?.value || '',
+      mobile: document.getElementById('cn_mobile_' + i)?.value || '',
+      email: document.getElementById('cn_email_' + i)?.value || '',
+      location: document.getElementById('cn_location_' + i)?.value || ''
+    };
+  }).filter(c => c.name || c.email);
+}
+
+// ── Documents ─────────────────────────────────────────────────
+function handleFileUpload(input) {
+  const category = document.getElementById('docCategory').value;
+  if (!category) { toast('Select a document category first', 'error'); input.value = ''; return; }
+  Array.from(input.files).forEach(file => {
+    if (file.size > 10 * 1024 * 1024) { toast(file.name + ' exceeds 10MB', 'error'); return; }
+    pendingDocuments.push({ file, category, name: file.name });
+    renderPendingDoc({ name: file.name, category, status: 'pending', size: (file.size/1024).toFixed(0) + ' KB' });
+  });
+  input.value = '';
+}
+
+function renderPendingDoc(doc) {
+  const div = document.createElement('div');
+  div.className = 'doc-row';
+  div.innerHTML = `
+    <div class="doc-icon">📄</div>
+    <div class="doc-info">
+      <div class="doc-name">${esc(doc.name)}</div>
+      <div class="doc-meta">${esc(doc.category)} · ${doc.size || ''} · ${doc.status === 'pending' ? 'Queued for upload' : 'Uploaded'}</div>
+    </div>
+  `;
+  document.getElementById('docsContainer').appendChild(div);
+}
+
+function renderDocuments(docs) {
+  const c = document.getElementById('docsContainer');
+  c.innerHTML = '';
+  docs.forEach(d => {
+    const div = document.createElement('div');
+    div.className = 'doc-row';
+    div.innerHTML = `
+      <div class="doc-icon">📄</div>
+      <div class="doc-info">
+        <div class="doc-name"><a href="${d.url}" target="_blank">${esc(d.name)}</a></div>
+        <div class="doc-meta">${esc(d.category)} · ${d.uploaded_by} · ${fmt(d.uploaded_at)}</div>
+      </div>
+      <a href="${d.url}" target="_blank" class="btn btn-outline btn-sm">Download</a>
+    `;
+    c.appendChild(div);
+  });
+}
+
+async function uploadPendingDocs(tenderId) {
+  const uploaded = [];
+  for (const pd of pendingDocuments) {
+    try {
+      const path = `tenders/${tenderId}/${Date.now()}_${pd.file.name}`;
+      const ref = storage.ref(path);
+      await ref.put(pd.file);
+      const url = await ref.getDownloadURL();
+      uploaded.push({
+        name: pd.file.name, category: pd.category, url,
+        uploaded_by: currentUser.displayName || currentUser.email,
+        uploaded_at: new Date().toISOString()
+      });
+    } catch (e) { toast('Upload failed: ' + pd.file.name, 'error'); }
+  }
+  if (uploaded.length > 0) {
+    const prev = allTenders.find(t => t.id === tenderId)?.documents || [];
+    await db.collection('tenders').doc(tenderId).update({ documents: [...prev, ...uploaded] });
+    pendingDocuments = [];
+    toast(uploaded.length + ' document(s) uploaded', 'success');
+  }
+}
+
+// ── Remarks ───────────────────────────────────────────────────
+function renderRemarks(history, current) {
+  const c = document.getElementById('remarksHistory');
+  c.innerHTML = '<div style="font-size:13px;font-weight:600;color:var(--muted);margin-bottom:10px">Remark History</div>';
+  if (!history.length) { c.innerHTML += '<div style="color:var(--muted);font-size:13px">No remarks yet.</div>'; return; }
+  history.forEach(r => {
+    const div = document.createElement('div');
+    div.className = 'remark-entry';
+    div.innerHTML = `<div>${esc(r.text)}</div><div class="remark-meta">— ${esc(r.by)} · ${fmt(r.at)}</div>`;
+    c.appendChild(div);
+  });
+}
+
+// ── History ───────────────────────────────────────────────────
+function renderHistory(history) {
+  const c = document.getElementById('historyContainer');
+  if (!history.length) { c.innerHTML = '<div style="color:var(--muted);font-size:13px">No history yet.</div>'; return; }
+  c.innerHTML = history.map(h => `
+    <div class="timeline-item">
+      <div class="timeline-dot"></div>
+      <div class="timeline-text">${esc(h.action)} · ${h.work_status ? 'Work: <b>' + esc(h.work_status) + '</b>' : ''} ${h.result_status ? '· Result: <b>' + esc(h.result_status) + '</b>' : ''}</div>
+      <div class="timeline-meta">by ${esc(h.by)} · ${fmt(h.at)}</div>
+    </div>
+  `).join('');
+}
+
+// ── Auto-calculations ─────────────────────────────────────────
+function calcDaysLeft() {
+  const deadline = document.getElementById('f_deadline')?.value;
+  const d = calcDaysLeftVal(deadline);
+  document.getElementById('f_days_left').value = d !== null ? d : '';
+}
+
+function calcContractEnd() {
+  const start = document.getElementById('f_potential_start_date')?.value;
+  const months = parseInt(document.getElementById('f_potential_contract_period_months')?.value) || 0;
+  if (start && months) {
+    const d = new Date(start);
+    d.setMonth(d.getMonth() + months);
+    document.getElementById('f_potential_end_date').value = d.toISOString().slice(0,10);
+  }
+}
+
+// ── Delete tender ─────────────────────────────────────────────
+async function deleteTender(id) {
+  if (!confirm('Delete this tender? This cannot be undone.')) return;
+  try {
+    await db.collection('tenders').doc(id).delete();
+    allTenders = allTenders.filter(t => t.id !== id);
+    renderList(); renderDashboard();
+    toast('Tender deleted', 'success');
+  } catch (e) { toast('Delete failed: ' + e.message, 'error'); }
+}
+
+// ── Branches & Marketing Persons ──────────────────────────────
+let branches = [];
+let marketingPersons = [];
+
+async function loadBranchesIntoSelects() {
+  const snap = await db.collection('branches').where('active','==',true).get();
+  branches = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+  const selects = ['f_branch_code', 'filterBranch'];
+  selects.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const firstOpt = el.options[0];
+    el.innerHTML = '';
+    el.appendChild(firstOpt);
+    branches.forEach(b => {
+      const o = document.createElement('option');
+      o.value = b.id; o.textContent = b.id + (b.city ? ' — ' + b.city : '');
+      el.appendChild(o);
+    });
+  });
+}
+
+async function loadMarketingPersons() {
+  const branch = document.getElementById('f_branch_code')?.value;
+  const sel = document.getElementById('f_marketing_person_spoc_id');
+  sel.innerHTML = '<option value="">— Select SPOC —</option>';
+  if (!branch) return;
+
+  const snap = await db.collection('marketing_persons').where('branch_code','==',branch).where('active','==',true).get();
+  snap.docs.forEach(d => {
+    const mp = d.data();
+    const o = document.createElement('option');
+    o.value = d.id; o.textContent = mp.name + (mp.email ? ' (' + mp.email + ')' : '');
+    sel.appendChild(o);
+  });
+}
+
+// ── Masters UI ────────────────────────────────────────────────
+async function loadMasters() {
+  if (!canManageMasters() && currentUserProfile?.role !== 'bidmanager') return;
+
+  // Branches
+  const bSnap = await db.collection('branches').get();
+  document.getElementById('masterBranches').innerHTML = bSnap.docs.map(d => {
+    const b = d.data();
+    return `<tr>
+      <td><b>${d.id}</b></td><td>${b.city||''}</td><td>${b.country||''}</td>
+      <td>${b.active ? '✅' : '❌'}</td>
+      <td><button class="btn btn-outline btn-sm" onclick="toggleActive('branches','${d.id}',${b.active})">Toggle</button></td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="5" style="color:var(--muted);padding:20px">No branches yet</td></tr>';
+
+  // Marketing persons
+  const mpSnap = await db.collection('marketing_persons').get();
+  document.getElementById('masterMarketing').innerHTML = mpSnap.docs.map(d => {
+    const m = d.data();
+    return `<tr>
+      <td>${m.name}</td><td>${m.branch_code}</td><td>${m.email||''}</td>
+      <td>${m.active ? '✅' : '❌'}</td>
+      <td><button class="btn btn-outline btn-sm" onclick="toggleActive('marketing_persons','${d.id}',${m.active})">Toggle</button></td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="5" style="color:var(--muted);padding:20px">No marketing persons yet</td></tr>';
+
+  // Users
+  const uSnap = await db.collection('users').get();
+  document.getElementById('masterUsers').innerHTML = uSnap.docs.map(d => {
+    const u = d.data();
+    return `<tr>
+      <td>${u.name}</td><td>${u.email}</td>
+      <td>
+        ${canManageMasters() ? `<select class="form-control" style="padding:4px;font-size:12px" onchange="updateUserRole('${d.id}',this.value)">
+          ${ROLES.map(r => `<option ${u.role===r?'selected':''} value="${r}">${ROLE_LABELS[r]}</option>`).join('')}
+        </select>` : `<span class="role-badge role-${u.role}">${ROLE_LABELS[u.role]||u.role}</span>`}
+      </td>
+      <td>
+        ${canManageMasters() ? `<select class="form-control" style="padding:4px;font-size:12px" onchange="updateUserBranch('${d.id}',this.value)">
+          <option value="">—</option>
+          ${branches.map(b => `<option ${u.branch_code===b.id?'selected':''} value="${b.id}">${b.id}</option>`).join('')}
+        </select>` : (u.branch_code||'—')}
+      </td>
+      <td>${u.active ? '✅' : '❌'}</td>
+      <td><button class="btn btn-outline btn-sm" onclick="toggleActive('users','${d.id}',${u.active})">Toggle</button></td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="6" style="color:var(--muted);padding:20px">No users yet</td></tr>';
+}
+
+async function updateUserRole(uid, role) {
+  if (!canManageMasters()) return;
+  await db.collection('users').doc(uid).update({ role });
+  toast('Role updated', 'success');
+}
+async function updateUserBranch(uid, branch) {
+  if (!canManageMasters()) return;
+  await db.collection('users').doc(uid).update({ branch_code: branch });
+  toast('Branch updated', 'success');
+}
+async function toggleActive(col, id, current) {
+  if (!canManageMasters()) return;
+  await db.collection(col).doc(id).update({ active: !current });
+  loadMasters();
+}
+
+function openMasterModal(type) {
+  if (!canManageMasters()) { toast('Admin access required', 'error'); return; }
+  masterModalType = type;
+  const modal = document.getElementById('masterModal');
+  document.getElementById('masterModalTitle').textContent = type === 'branch' ? 'Add Branch' : 'Add Marketing Person';
+  document.getElementById('masterModalBody').innerHTML = type === 'branch'
+    ? `<div class="form-grid"><div class="form-group"><label>Branch Code <span class="req">*</span></label><input class="form-control" id="mm_id" placeholder="e.g. DXB"/></div><div class="form-group"><label>City</label><input class="form-control" id="mm_city" placeholder="Dubai"/></div><div class="form-group"><label>Country</label><input class="form-control" id="mm_country" placeholder="UAE"/></div></div>`
+    : `<div class="form-grid"><div class="form-group"><label>Name <span class="req">*</span></label><input class="form-control" id="mm_name" placeholder="Full name"/></div><div class="form-group"><label>Email</label><input class="form-control" id="mm_email" placeholder="email@..."/></div><div class="form-group"><label>Branch Code <span class="req">*</span></label><select class="form-control" id="mm_branch">${branches.map(b => `<option value="${b.id}">${b.id}</option>`).join('')}</select></div></div>`;
+  modal.style.display = 'flex';
+}
+
+function closeMasterModal() { document.getElementById('masterModal').style.display = 'none'; }
+
+async function saveMasterRecord() {
+  if (masterModalType === 'branch') {
+    const id = document.getElementById('mm_id')?.value.trim().toUpperCase();
+    if (!id) { toast('Branch code required', 'error'); return; }
+    await db.collection('branches').doc(id).set({
+      city: document.getElementById('mm_city')?.value.trim() || '',
+      country: document.getElementById('mm_country')?.value.trim() || '',
+      active: true
+    });
+    toast('Branch added: ' + id, 'success');
+  } else {
+    const name = document.getElementById('mm_name')?.value.trim();
+    if (!name) { toast('Name required', 'error'); return; }
+    await db.collection('marketing_persons').add({
+      name,
+      email: document.getElementById('mm_email')?.value.trim() || '',
+      branch_code: document.getElementById('mm_branch')?.value || '',
+      active: true
+    });
+    toast('Marketing person added', 'success');
+  }
+  closeMasterModal();
+  loadMasters();
+  loadBranchesIntoSelects();
+}
+
+// ── Export ────────────────────────────────────────────────────
+function exportExcel() {
+  const headers = ['Tender ID','Date Created','Client','Branch','Bid Type','Deadline','Days Left','Work Status','Submission Status','Result Status','Assigned To','Potential Amount USD','Description'];
+  const rows = allTenders.map(t => [
+    t.tender_unique_id||'', t.date_created||'', t.customer_name||'', t.branch_code||'',
+    t.bid_type||'', t.deadline||'', t.days_left||'', t.work_status||'',
+    t.submission_status||'', t.tender_result_status||'', t.assigned_to||'',
+    t.potential_amount_usd||'', (t.bid_description||'').slice(0,100)
+  ]);
+  const csv = [headers, ...rows].map(r => r.map(c => '"' + String(c).replace(/"/g,'""') + '"').join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = 'tenders_' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+}
+
+// ── Helpers ───────────────────────────────────────────────────
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function fmt(d) {
+  if (!d) return '—';
+  const s = String(d).slice(0,10);
+  if (!/^\d{4}-\d{2}-\d{2}/.test(s)) return s;
+  const [y,m,day] = s.split('-');
+  return `${day}/${m}/${y}`;
+}
+
+function daysPill(n) {
+  if (n === null || n === undefined || n === '') return '<span style="color:var(--muted)">—</span>';
+  const cls = n > 7 ? 'days-safe' : n >= 0 ? 'days-warn' : 'days-danger';
+  const label = n < 0 ? Math.abs(n) + ' overdue' : n === 0 ? 'Today' : n + ' days';
+  return `<span class="days-pill ${cls}">${label}</span>`;
+}
+
+function workBadge(s) {
+  const map = { 'Not Started':'badge-new','In Process':'badge-inprogress','On Hold':'badge-awaited','Completed':'badge-completed','Cancelled':'badge-cancelled' };
+  return `<span class="badge ${map[s]||'badge-new'}">${s||'—'}</span>`;
+}
+function subBadge(s) {
+  const map = { 'Pending':'badge-new','Submitted':'badge-submitted','Not Submitted':'badge-cancelled','Delayed':'badge-awaited','Extended':'badge-inprogress' };
+  return `<span class="badge ${map[s]||'badge-new'}">${s||'—'}</span>`;
+}
+function resultBadge(s) {
+  const map = { 'Result Awaited':'badge-awaited','Won':'badge-won','Lost':'badge-lost','Cancelled':'badge-cancelled','Disqualified':'badge-disqualified','Not Participated':'badge-cancelled' };
+  return `<span class="badge ${map[s]||'badge-new'}">${s||'—'}</span>`;
+}
+
+function toast(msg, type = 'info') {
+  const wrap = document.getElementById('toastWrap');
+  const t = document.createElement('div');
+  t.className = 'toast ' + type;
+  t.textContent = msg;
+  wrap.appendChild(t);
+  setTimeout(() => t.remove(), 4000);
+}
+</script>
+</body>
+</html>

@@ -13,10 +13,54 @@ from flask_cors import CORS
 from scraper import run_scraper
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+GCS_BUCKET = "satguru-bid-tenders"
+GCS_OBJECT = "tenders.json"
+LOCAL_TENDERS = os.path.join(BASE_DIR, "tenders.json")
+
 app = Flask(__name__, static_folder=BASE_DIR)
 CORS(app, origins=["https://satguru-bid-management.vercel.app", "http://localhost:3000"])
 
 scraper_status = {"running": False, "last_run": None, "last_count": 0, "error": None}
+
+
+def is_cloud():
+    return os.environ.get("K_SERVICE") is not None  # set by Cloud Run automatically
+
+
+def read_tenders():
+    if is_cloud():
+        try:
+            from google.cloud import storage
+            client = storage.Client()
+            bucket = client.bucket(GCS_BUCKET)
+            blob = bucket.blob(GCS_OBJECT)
+            if blob.exists():
+                return json.loads(blob.download_as_text())
+        except Exception as e:
+            print(f"GCS read error: {e}")
+        return []
+    else:
+        if os.path.exists(LOCAL_TENDERS):
+            with open(LOCAL_TENDERS) as f:
+                return json.load(f)
+        return []
+
+
+def write_tenders(tenders):
+    if is_cloud():
+        try:
+            from google.cloud import storage
+            client = storage.Client()
+            bucket = client.bucket(GCS_BUCKET)
+            blob = bucket.blob(GCS_OBJECT)
+            blob.upload_from_string(json.dumps(tenders, indent=2), content_type="application/json")
+            print(f"Saved {len(tenders)} tenders to GCS")
+        except Exception as e:
+            print(f"GCS write error: {e}")
+    else:
+        with open(LOCAL_TENDERS, "w") as f:
+            json.dump(tenders, f, indent=2)
+        print(f"Saved {len(tenders)} tenders locally")
 
 
 @app.route("/")
@@ -38,7 +82,7 @@ def sync():
         scraper_status["running"] = True
         scraper_status["error"] = None
         try:
-            results = asyncio.run(run_scraper(headless=True))
+            results = asyncio.run(run_scraper(headless=True, save_fn=write_tenders, load_fn=read_tenders))
             scraper_status["last_count"] = len(results)
             scraper_status["last_run"] = __import__("datetime").datetime.now().isoformat()
         except Exception as e:
@@ -58,11 +102,7 @@ def sync_status():
 
 @app.route("/api/tenders")
 def get_tenders():
-    tenders_file = os.path.join(BASE_DIR, "tenders.json")
-    if not os.path.exists(tenders_file):
-        return jsonify([])
-    with open(tenders_file) as f:
-        return jsonify(json.load(f))
+    return jsonify(read_tenders())
 
 
 if __name__ == "__main__":

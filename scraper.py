@@ -208,11 +208,14 @@ async def scrape_tendersinfo(context):
     return tenders
 
 
-async def run_scraper(headless=True):
+async def run_scraper(headless=True, save_fn=None, load_fn=None):
     log("=" * 50)
     log("Starting Satguru Tender Scraper")
     log("=" * 50)
     all_new = []
+
+    _load = load_fn or load_existing
+    _save = save_fn or save_results
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=headless)
@@ -228,9 +231,9 @@ async def run_scraper(headless=True):
 
         await browser.close()
 
-    existing = load_existing()
+    existing = _load()
     combined = dedup(existing + all_new)
-    save_results(combined)
+    _save(combined)
 
     log(f"Done. {len(all_new)} new tenders found. {len(combined)} total in tracker.")
     return all_new

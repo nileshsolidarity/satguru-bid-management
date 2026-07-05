@@ -1045,7 +1045,7 @@
               </div>
             </div>
             <div style="display:flex;gap:6px;flex-shrink:0">
-              ${t.link ? `<a href="${t.link}" target="_blank" title="Opens on ${t.source} — you must be logged in there to view" class="btn btn-outline btn-sm">View 🔒</a>` : ''}
+              ${t.link ? `<button class="btn btn-outline btn-sm" onclick="viewTenderDetail('${encodeURIComponent(t.link)}', this)">View</button>` : ''}
               <button class="btn btn-primary btn-sm" onclick="trackTender(${i})">Track This</button>
             </div>
           </div>`).join('');
@@ -1072,6 +1072,31 @@
     document.getElementById('f_source').value = t.source === 'Global Tenders' ? 'Global Tenders' :
                                                   t.source === 'Tenders Info' ? 'Tenders Info' : 'Other';
     document.getElementById('f_notes').value = t.details || '';
+  }
+
+  function viewTenderDetail(encodedUrl, btn) {
+    const url = decodeURIComponent(encodedUrl);
+    const proxyUrl = `${API_BASE}/api/tender-detail?url=${encodeURIComponent(url)}`;
+    const orig = btn.textContent;
+    btn.textContent = 'Loading...';
+    btn.disabled = true;
+    // Open a blank window immediately (avoids popup blocker), then set location
+    const win = window.open('', '_blank');
+    win.document.write('<html><body style="font-family:sans-serif;padding:40px;text-align:center"><h2>Loading tender from portal...</h2><p>Logging in automatically, please wait ~10 seconds.</p></body></html>');
+    fetch(proxyUrl)
+      .then(r => r.text())
+      .then(html => {
+        win.document.open();
+        win.document.write(html);
+        win.document.close();
+        btn.textContent = orig;
+        btn.disabled = false;
+      })
+      .catch(e => {
+        win.document.write('<h2>Error</h2><p>' + e + '</p>');
+        btn.textContent = orig;
+        btn.disabled = false;
+      });
   }
 
   function trackTender(idx) {

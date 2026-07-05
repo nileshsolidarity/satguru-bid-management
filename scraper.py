@@ -239,5 +239,58 @@ async def run_scraper(headless=True, save_fn=None, load_fn=None):
     return all_new
 
 
+async def fetch_tender_page(url: str) -> str:
+    """Log in to the appropriate portal and return the tender detail page as HTML."""
+    is_gt = "globaltenders.com" in url
+    is_ti = "tendersinfo" in url
+    creds = CREDS["globaltenders"] if is_gt else CREDS["tendersinfo"] if is_ti else None
+
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        context = await browser.new_context(
+            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"
+        )
+        page = await context.new_page()
+        try:
+            if creds:
+                log(f"Logging in to fetch detail: {url}")
+                await page.goto(creds["login_url"], timeout=30000)
+                await page.wait_for_timeout(2000)
+                if is_gt:
+                    await page.fill('input[name="email"]', creds["email"])
+                    await page.fill('input[name="password"]', creds["password"])
+                    await page.click('input[type="submit"]')
+                else:
+                    await page.wait_for_selector('input[name="user_id"]', state="visible", timeout=15000)
+                    await page.fill('input[name="user_id"]', creds["email"])
+                    await page.fill('input[name="password"]', creds["password"])
+                    await page.click('button:has-text("Sign In")')
+                await page.wait_for_timeout(4000)
+
+            await page.goto(url, timeout=30000)
+            await page.wait_for_timeout(3000)
+
+            html = await page.content()
+            # Inject base tag so relative links/images resolve correctly
+            base = f'<base href="{url}" target="_blank">'
+            html = html.replace("<head>", f"<head>{base}", 1)
+            # Add a close banner at the top
+            banner = (
+                '<div style="position:fixed;top:0;left:0;right:0;background:#1a1a2e;color:white;'
+                'padding:10px 20px;display:flex;align-items:center;justify-content:space-between;'
+                'z-index:99999;font-family:sans-serif;font-size:13px;">'
+                '<span>&#x1F4CB; Satguru Bid Management &mdash; Tender Preview</span>'
+                '<button onclick="window.close()" style="background:#e94560;border:none;color:white;'
+                'padding:6px 14px;border-radius:6px;cursor:pointer;font-weight:600;">&times; Close</button>'
+                '</div><div style="height:48px"></div>'
+            )
+            html = html.replace("<body>", f"<body>{banner}", 1)
+        except Exception as e:
+            html = f"<html><body><h2>Error loading tender</h2><p>{e}</p><p><a href='{url}' target='_blank'>Open directly</a></p></body></html>"
+        finally:
+            await browser.close()
+    return html
+
+
 if __name__ == "__main__":
     asyncio.run(run_scraper(headless=False))

@@ -8,7 +8,7 @@ import json
 import os
 import threading
 import asyncio
-from flask import Flask, send_from_directory, jsonify
+from flask import Flask, send_from_directory, jsonify, request, Response
 from flask_cors import CORS
 from scraper import run_scraper
 
@@ -103,6 +103,20 @@ def sync_status():
 @app.route("/api/tenders")
 def get_tenders():
     return jsonify(read_tenders())
+
+
+@app.route("/api/tender-detail")
+def tender_detail():
+    url = request.args.get("url", "").strip()
+    if not url:
+        return jsonify({"error": "url required"}), 400
+
+    try:
+        from scraper import fetch_tender_page
+        html = asyncio.run(fetch_tender_page(url))
+        return Response(html, mimetype="text/html")
+    except Exception as e:
+        return Response(f"<h2>Could not load tender</h2><p>{e}</p><p><a href='{url}' target='_blank'>Try opening directly</a></p>", mimetype="text/html")
 
 
 if __name__ == "__main__":

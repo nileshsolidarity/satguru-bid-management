@@ -1044,7 +1044,10 @@
                 &nbsp;·&nbsp;Scraped: ${t.scraped_at ? t.scraped_at.split('T')[0] : ''}
               </div>
             </div>
-            <button class="btn btn-primary btn-sm" onclick="addScrapedToTracker(${i})">+ Add</button>
+            <div style="display:flex;gap:6px;flex-shrink:0">
+              ${t.link ? `<a href="${t.link}" target="_blank" class="btn btn-outline btn-sm">View</a>` : ''}
+              <button class="btn btn-primary btn-sm" onclick="trackTender(${i})">Track This</button>
+            </div>
           </div>`).join('');
         window._scrapedTenders = tenders;
       }
@@ -1063,13 +1066,30 @@
   function addScrapedToTracker(idx) {
     const t = (window._scrapedTenders || [])[idx];
     if (!t) return;
-    // Pre-fill modal with scraped data
     openModal();
     document.getElementById('modalTitle').textContent = 'Add Scraped Tender';
     document.getElementById('f_name').value = t.title || '';
     document.getElementById('f_source').value = t.source === 'Global Tenders' ? 'Global Tenders' :
                                                   t.source === 'Tenders Info' ? 'Tenders Info' : 'Other';
     document.getElementById('f_notes').value = t.details || '';
+  }
+
+  function trackTender(idx) {
+    const t = (window._scrapedTenders || [])[idx];
+    if (!t) return;
+    // Store pre-fill data then open tender module
+    localStorage.setItem('satguru_prefill', JSON.stringify({
+      customer_name: t.title || '',
+      tender_source: t.source === 'Global Tenders' ? 'Portal' : t.source === 'Tenders Info' ? 'Portal' : 'Portal',
+      bid_description: t.title || '',
+      deadline: t.deadline ? t.deadline.split('T')[0] : '',
+      notification_received_date: t.scraped_at ? t.scraped_at.split('T')[0] : new Date().toISOString().slice(0,10),
+      link: t.link || '',
+      authority: t.authority || '',
+      country: t.country || '',
+      source_portal: t.source || '',
+    }));
+    window.open('tenders.html?quick=1', '_blank');
   }
 
   // ── Init ──────────────────────────────────────────────────────────────────

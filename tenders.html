@@ -787,6 +787,49 @@ let editingTenderId = null;
 let pendingDocuments = []; // docs queued for upload on new tender
 let masterModalType = null;
 
+// ── Quick-track pre-fill (from portal tracker) ───────────────
+function checkQuickPrefill() {
+  if (!new URLSearchParams(location.search).has('quick')) return;
+  try {
+    const data = JSON.parse(localStorage.getItem('satguru_prefill') || '{}');
+    if (!data.customer_name) return;
+    localStorage.removeItem('satguru_prefill');
+    const banner = document.createElement('div');
+    banner.style.cssText = 'background:#1d4ed8;color:white;padding:12px 28px;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:space-between;gap:12px;';
+    banner.innerHTML = `<span>📋 Pre-filled from Portal Tracker — fill Branch &amp; Deadline, then Save. All other fields can be completed later.</span><button onclick="this.parentElement.remove()" style="background:none;border:none;color:white;cursor:pointer;font-size:18px;flex-shrink:0">✕</button>`;
+    document.getElementById('app').insertBefore(banner, document.querySelector('.tabs-bar').nextSibling);
+    window._prefillData = data;
+  } catch(e) {}
+}
+
+function applyPrefill() {
+  const data = window._prefillData;
+  if (!data) return;
+  const map = {
+    customer_name: data.customer_name,
+    bid_description: data.bid_description,
+    tender_source: 'Portal',
+    mode: 'Online Portal',
+    notification_received_date: data.notification_received_date,
+    deadline: data.deadline,
+    work_status: 'Not Started',
+    submission_status: 'Pending',
+  };
+  Object.entries(map).forEach(([k, v]) => {
+    const el = document.getElementById('f_' + k);
+    if (el && v) el.value = v;
+  });
+  if (data.source_portal || data.authority || data.link) {
+    document.getElementById('f_new_remark').value =
+      [data.source_portal && `Source: ${data.source_portal}`,
+       data.authority && `Authority: ${data.authority}`,
+       data.country && `Country: ${data.country}`,
+       data.link && `Link: ${data.link}`].filter(Boolean).join('\n');
+  }
+  calcDaysLeft();
+  window._prefillData = null;
+}
+
 // ── Auth ─────────────────────────────────────────────────────
 auth.onAuthStateChanged(async user => {
   if (user) {
@@ -804,6 +847,7 @@ auth.onAuthStateChanged(async user => {
     document.getElementById('userName').textContent = user.displayName || user.email;
     document.getElementById('userRoleLabel').textContent = ROLE_LABELS[profile?.role] || 'User';
 
+    checkQuickPrefill();
     loadAllData();
   } else {
     currentUser = null;
@@ -870,8 +914,13 @@ async function loadAllData() {
   await loadTenders();
   renderDashboard();
   renderList();
-  loadBranchesIntoSelects();
+  await loadBranchesIntoSelects();
   loadMasters();
+  // If came from portal tracker, open new tender form pre-filled
+  if (new URLSearchParams(location.search).has('quick') && window._prefillData) {
+    openNewTender();
+    setTimeout(applyPrefill, 100);
+  }
 }
 
 async function loadTenders() {
@@ -1121,14 +1170,14 @@ async function saveTender() {
   const getString = id => (document.getElementById('f_' + id)?.value || '').trim();
   const getNum   = id => parseFloat(document.getElementById('f_' + id)?.value) || 0;
 
-  // Validation
-  const required = ['tender_source','mode','notification_received_date','bid_type','customer_name','bid_description','commodity_type','branch_code','assigned_to','deadline','work_status'];
-  for (const f of required) {
-    if (!getString(f)) {
-      toast('Please fill: ' + f.replace(/_/g,' '), 'error');
-      return;
-    }
+  // Validation — only customer_name is hard required; rest can be filled later
+  if (!getString('customer_name')) {
+    toast('Client / Customer Name is required', 'error');
+    document.getElementById('f_customer_name').classList.add('error');
+    document.querySelector('.form-tab-btn').click(); // go to first tab
+    return;
   }
+  document.getElementById('f_customer_name').classList.remove('error');
 
   const data = {
     tender_source: getString('tender_source'),

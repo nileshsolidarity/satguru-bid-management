@@ -1045,7 +1045,7 @@
               </div>
             </div>
             <div style="display:flex;gap:6px;flex-shrink:0">
-              ${t.link ? `<a href="${t.link}" target="_blank" class="btn btn-outline btn-sm">View</a>` : ''}
+              ${t.link ? `<a href="${t.link}" target="_blank" title="Opens on ${t.source} — you must be logged in there to view" class="btn btn-outline btn-sm">View 🔒</a>` : ''}
               <button class="btn btn-primary btn-sm" onclick="trackTender(${i})">Track This</button>
             </div>
           </div>`).join('');

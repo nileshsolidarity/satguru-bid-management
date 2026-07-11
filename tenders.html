@@ -298,6 +298,7 @@
     </div>
     <div class="header-right">
       <a href="index.html" class="home-btn">← Portal Tracker</a>
+      <a href="bid-prep.html" class="home-btn">✨ Bid Prep</a>
       <div class="user-chip">
         <div class="user-avatar" id="userAvatar">?</div>
         <div>
@@ -316,6 +317,7 @@
     <button class="tab-btn" onclick="openNewTender()">+ New Tender</button>
     <button class="tab-btn" id="tab-btn-form" style="display:none" onclick="switchTab('form')">Edit Tender</button>
     <button class="tab-btn" onclick="switchTab('masters')">Masters</button>
+    <button class="tab-btn" onclick="switchTab('reports')">Reports</button>
   </div>
 
   <!-- ── DASHBOARD ── -->
@@ -327,6 +329,20 @@
       <div class="stat-card"><div class="stat-label">Result Awaited</div><div class="stat-val" id="statAwaited">—</div><div class="stat-sub">Submitted, pending outcome</div></div>
       <div class="stat-card green"><div class="stat-label">Won</div><div class="stat-val" id="statWon">—</div><div class="stat-sub">This year</div></div>
       <div class="stat-card blue"><div class="stat-label">In Progress</div><div class="stat-val" id="statInProg">—</div><div class="stat-sub">Active work</div></div>
+      <div class="stat-card"><div class="stat-label">This Month</div><div class="stat-val" id="statThisMonth">—</div><div class="stat-sub">New tenders added</div></div>
+      <div class="stat-card orange"><div class="stat-label">Pending Submission</div><div class="stat-val" id="statPending">—</div><div class="stat-sub">Not yet submitted</div></div>
+      <div class="stat-card green"><div class="stat-label">Submitted</div><div class="stat-val" id="statSubmitted">—</div><div class="stat-sub">Total submitted</div></div>
+      <div class="stat-card blue"><div class="stat-label">Total Value (USD)</div><div class="stat-val" id="statValue">—</div><div class="stat-sub">Potential amount</div></div>
+    </div>
+
+    <!-- Branch-wise summary -->
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-header"><div class="card-title">🏢 Branch-wise Tender Summary</div></div>
+      <div class="table-wrap" style="border:none;border-radius:0">
+        <table><thead><tr><th>Branch</th><th>Total</th><th>In Progress</th><th>Submitted</th><th>Won</th><th>Lost</th><th>Result Awaited</th><th>Potential USD</th></tr></thead>
+        <tbody id="dashBranchBody"><tr><td colspan="8"><div class="loading"><span class="spinner"></span>Loading...</div></td></tr></tbody>
+        </table>
+      </div>
     </div>
 
     <!-- Overdue / Due soon table -->
@@ -739,6 +755,17 @@
           <tbody id="masterUsers"></tbody></table>
         </div>
       </div>
+      <!-- Clients -->
+      <div class="card" style="grid-column:1/-1">
+        <div class="card-header">
+          <div class="card-title">Clients / Customers</div>
+          <button class="btn btn-primary btn-sm" onclick="openMasterModal('client')">+ Add Client</button>
+        </div>
+        <div class="card-body" style="padding:0">
+          <table><thead><tr><th>Name</th><th>Global Name</th><th>Country</th><th>Active</th><th>Actions</th></tr></thead>
+          <tbody id="masterClients"></tbody></table>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -746,6 +773,54 @@
 
 <!-- Toast container -->
 <div class="toast-wrap" id="toastWrap"></div>
+
+  <!-- ── REPORTS ── -->
+  <div id="tab-reports" class="tab-content">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <h2 style="font-size:18px;font-weight:700">Reports</h2>
+      <div style="display:flex;gap:10px">
+        <button class="btn btn-primary btn-sm" onclick="runReport()">Generate Report</button>
+        <button class="btn btn-outline btn-sm" onclick="exportReport()">Export CSV</button>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-body">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+          <select id="rptType" class="form-control" style="min-width:220px">
+            <option value="all">All Tenders Report</option>
+            <option value="pending">Pending Tenders</option>
+            <option value="submitted">Submitted Tenders</option>
+            <option value="result_awaited">Result Awaited</option>
+            <option value="won">Won Tenders</option>
+            <option value="lost">Lost Tenders</option>
+            <option value="overdue">Overdue Tenders</option>
+            <option value="post_submission">Post-Submission Follow-up</option>
+            <option value="monthly">Monthly MIS</option>
+          </select>
+          <input type="date" id="rptFrom" class="form-control" title="From date"/>
+          <input type="date" id="rptTo" class="form-control" title="To date"/>
+          <select id="rptBranch" class="form-control"><option value="">All Branches</option></select>
+          <select id="rptResultStatus" class="form-control">
+            <option value="">All Results</option>
+            <option>Result Awaited</option><option>Won</option><option>Lost</option><option>Cancelled</option><option>Disqualified</option><option>Not Participated</option>
+          </select>
+          <select id="rptBidType" class="form-control">
+            <option value="">All Bid Types</option>
+            <option>RFP</option><option>RFQ</option><option>EOI</option><option>SR</option><option>Tender</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px" id="rptCount"></div>
+    <div class="table-wrap">
+      <table>
+        <thead id="rptHead"></thead>
+        <tbody id="rptBody">
+          <tr><td colspan="12" style="text-align:center;padding:40px;color:var(--muted)">Select a report type and click Generate Report</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
 
 <!-- Master modal -->
 <div id="masterModal" style="display:none">
@@ -953,6 +1028,7 @@ function switchTab(name) {
   if (name === 'dashboard') renderDashboard();
   if (name === 'list') renderList();
   if (name === 'masters') loadMasters();
+  if (name === 'reports') populateReportBranchFilter();
 }
 
 // ── Dashboard ─────────────────────────────────────────────────
@@ -981,6 +1057,35 @@ function renderDashboard() {
   document.getElementById('statAwaited').textContent = awaited;
   document.getElementById('statWon').textContent = won;
   document.getElementById('statInProg').textContent = inprog;
+
+  // New stats
+  const thisMonthStr = new Date().toISOString().slice(0,7);
+  const thisMonth = allTenders.filter(t => (t.date_created||'').startsWith(thisMonthStr)).length;
+  const pending = allTenders.filter(t => t.submission_status === 'Pending').length;
+  const submitted = allTenders.filter(t => t.submission_status === 'Submitted').length;
+  const totalVal = allTenders.reduce((s,t) => s + (parseFloat(t.potential_amount_usd)||0), 0);
+  document.getElementById('statThisMonth').textContent = thisMonth;
+  document.getElementById('statPending').textContent = pending;
+  document.getElementById('statSubmitted').textContent = submitted;
+  document.getElementById('statValue').textContent = totalVal > 0 ? '$' + (totalVal/1000).toFixed(0) + 'K' : '—';
+
+  // Branch-wise
+  const branchMap = {};
+  allTenders.forEach(t => {
+    const b = t.branch_code || '(No Branch)';
+    if (!branchMap[b]) branchMap[b] = {total:0,inprog:0,submitted:0,won:0,lost:0,awaited:0,val:0};
+    branchMap[b].total++;
+    if (t.work_status === 'In Process') branchMap[b].inprog++;
+    if (t.submission_status === 'Submitted') branchMap[b].submitted++;
+    if (t.tender_result_status === 'Won') branchMap[b].won++;
+    if (t.tender_result_status === 'Lost') branchMap[b].lost++;
+    if (t.tender_result_status === 'Result Awaited') branchMap[b].awaited++;
+    branchMap[b].val += parseFloat(t.potential_amount_usd)||0;
+  });
+  const branchRows = Object.entries(branchMap).sort((a,b)=>b[1].total-a[1].total).map(([br,s]) =>
+    `<tr><td><b>${br}</b></td><td>${s.total}</td><td>${s.inprog}</td><td>${s.submitted}</td><td style="color:var(--success);font-weight:700">${s.won}</td><td style="color:var(--danger)">${s.lost}</td><td style="color:var(--warning)">${s.awaited}</td><td>${s.val>0?'$'+(s.val/1000).toFixed(0)+'K':'—'}</td></tr>`
+  ).join('');
+  document.getElementById('dashBranchBody').innerHTML = branchRows || '<tr><td colspan="8" style="padding:20px;color:var(--muted);text-align:center">No data</td></tr>';
 
   // Overdue/due soon table
   const overdueList = allTenders.filter(t => {
@@ -1170,14 +1275,44 @@ async function saveTender() {
   const getString = id => (document.getElementById('f_' + id)?.value || '').trim();
   const getNum   = id => parseFloat(document.getElementById('f_' + id)?.value) || 0;
 
-  // Validation — only customer_name is hard required; rest can be filled later
+  // Validation
   if (!getString('customer_name')) {
     toast('Client / Customer Name is required', 'error');
     document.getElementById('f_customer_name').classList.add('error');
-    document.querySelector('.form-tab-btn').click(); // go to first tab
+    document.querySelector('.form-tab-btn').click();
     return;
   }
   document.getElementById('f_customer_name').classList.remove('error');
+
+  // Submission validation
+  if (getString('submission_status') === 'Submitted') {
+    if (!getString('submission_date')) { toast('Date of Submission is required when status is Submitted', 'error'); return; }
+    if (!getString('submission_type')) { toast('Submission Type is required when status is Submitted', 'error'); return; }
+    if (!getString('submission_route')) { toast('Submission Route is required when status is Submitted', 'error'); return; }
+  }
+
+  // Result validation
+  if (getString('tender_result_status') === 'Won' && !getString('won_date')) {
+    toast('Won Date is required when Result Status is Won', 'error'); return;
+  }
+  if (getString('tender_result_status') === 'Lost' && !getString('lost_reason')) {
+    toast('Lost Reason is required when Result Status is Lost', 'error'); return;
+  }
+  if (getString('work_status') === 'Completed' && !getString('finished_date')) {
+    toast('Finished Date is required when Work Status is Completed', 'error'); return;
+  }
+
+  // Duplicate check
+  if (!editingTenderId) {
+    const clientName = getString('customer_name').toLowerCase();
+    const refId = getString('tender_reference_id').toLowerCase();
+    if (refId) {
+      const dup = allTenders.find(t => t.customer_name?.toLowerCase() === clientName && t.tender_reference_id?.toLowerCase() === refId);
+      if (dup) {
+        if (!confirm(`A tender for "${getString('customer_name')}" with Reference ID "${getString('tender_reference_id')}" already exists (${dup.tender_unique_id}). Save anyway?`)) return;
+      }
+    }
+  }
 
   const data = {
     tender_source: getString('tender_source'),
@@ -1528,6 +1663,14 @@ async function loadMasters() {
       <td><button class="btn btn-outline btn-sm" onclick="toggleActive('users','${d.id}',${u.active})">Toggle</button></td>
     </tr>`;
   }).join('') || '<tr><td colspan="6" style="color:var(--muted);padding:20px">No users yet</td></tr>';
+
+  // Clients
+  const cSnap = await db.collection('clients').get();
+  const clientEl = document.getElementById('masterClients');
+  if (clientEl) clientEl.innerHTML = cSnap.docs.map(d => {
+    const c = d.data();
+    return `<tr><td><b>${esc(c.name)}</b></td><td>${esc(c.global_name||'')}</td><td>${esc(c.country||'')}</td><td>${c.active!==false?'✅':'❌'}</td><td><button class="btn btn-outline btn-sm" onclick="toggleActive('clients','${d.id}',${c.active!==false})">Toggle</button></td></tr>`;
+  }).join('') || '<tr><td colspan="5" style="color:var(--muted);padding:20px">No clients yet</td></tr>';
 }
 
 async function updateUserRole(uid, role) {
@@ -1550,10 +1693,15 @@ function openMasterModal(type) {
   if (!canManageMasters()) { toast('Admin access required', 'error'); return; }
   masterModalType = type;
   const modal = document.getElementById('masterModal');
-  document.getElementById('masterModalTitle').textContent = type === 'branch' ? 'Add Branch' : 'Add Marketing Person';
-  document.getElementById('masterModalBody').innerHTML = type === 'branch'
-    ? `<div class="form-grid"><div class="form-group"><label>Branch Code <span class="req">*</span></label><input class="form-control" id="mm_id" placeholder="e.g. DXB"/></div><div class="form-group"><label>City</label><input class="form-control" id="mm_city" placeholder="Dubai"/></div><div class="form-group"><label>Country</label><input class="form-control" id="mm_country" placeholder="UAE"/></div></div>`
-    : `<div class="form-grid"><div class="form-group"><label>Name <span class="req">*</span></label><input class="form-control" id="mm_name" placeholder="Full name"/></div><div class="form-group"><label>Email</label><input class="form-control" id="mm_email" placeholder="email@..."/></div><div class="form-group"><label>Branch Code <span class="req">*</span></label><select class="form-control" id="mm_branch">${branches.map(b => `<option value="${b.id}">${b.id}</option>`).join('')}</select></div></div>`;
+  const titles = { branch: 'Add Branch', marketing: 'Add Marketing Person', client: 'Add Client' };
+  document.getElementById('masterModalTitle').textContent = titles[type] || 'Add Record';
+  if (type === 'branch') {
+    document.getElementById('masterModalBody').innerHTML = `<div class="form-grid"><div class="form-group"><label>Branch Code <span class="req">*</span></label><input class="form-control" id="mm_id" placeholder="e.g. DXB"/></div><div class="form-group"><label>City</label><input class="form-control" id="mm_city" placeholder="Dubai"/></div><div class="form-group"><label>Country</label><input class="form-control" id="mm_country" placeholder="UAE"/></div></div>`;
+  } else if (type === 'client') {
+    document.getElementById('masterModalBody').innerHTML = `<div class="form-grid"><div class="form-group"><label>Client Name <span class="req">*</span></label><input class="form-control" id="mm_name" placeholder="Client / Company name"/></div><div class="form-group"><label>Global Name</label><input class="form-control" id="mm_global" placeholder="Parent company (if any)"/></div><div class="form-group"><label>Country</label><input class="form-control" id="mm_country" placeholder="Country"/></div><div class="form-group"><label>Industry</label><input class="form-control" id="mm_industry" placeholder="e.g. Government, NGO, Corporate"/></div></div>`;
+  } else {
+    document.getElementById('masterModalBody').innerHTML = `<div class="form-grid"><div class="form-group"><label>Name <span class="req">*</span></label><input class="form-control" id="mm_name" placeholder="Full name"/></div><div class="form-group"><label>Email</label><input class="form-control" id="mm_email" placeholder="email@..."/></div><div class="form-group"><label>Branch Code <span class="req">*</span></label><select class="form-control" id="mm_branch">${branches.map(b => `<option value="${b.id}">${b.id}</option>`).join('')}</select></div></div>`;
+  }
   modal.style.display = 'flex';
 }
 
@@ -1569,6 +1717,17 @@ async function saveMasterRecord() {
       active: true
     });
     toast('Branch added: ' + id, 'success');
+  } else if (masterModalType === 'client') {
+    const name = document.getElementById('mm_name')?.value.trim();
+    if (!name) { toast('Client name required', 'error'); return; }
+    await db.collection('clients').add({
+      name,
+      global_name: document.getElementById('mm_global')?.value.trim() || '',
+      country: document.getElementById('mm_country')?.value.trim() || '',
+      industry: document.getElementById('mm_industry')?.value.trim() || '',
+      active: true
+    });
+    toast('Client added: ' + name, 'success');
   } else {
     const name = document.getElementById('mm_name')?.value.trim();
     if (!name) { toast('Name required', 'error'); return; }
@@ -1599,6 +1758,114 @@ function exportExcel() {
   a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
   a.download = 'tenders_' + new Date().toISOString().slice(0,10) + '.csv';
   a.click();
+}
+
+// ── Reports ───────────────────────────────────────────────────
+function populateReportBranchFilter() {
+  const sel = document.getElementById('rptBranch');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">All Branches</option>';
+  branches.forEach(b => { const o = document.createElement('option'); o.value = b.id; o.textContent = b.id; sel.appendChild(o); });
+}
+
+function runReport() {
+  const type = document.getElementById('rptType').value;
+  const from = document.getElementById('rptFrom').value;
+  const to = document.getElementById('rptTo').value;
+  const branch = document.getElementById('rptBranch').value;
+  const rs = document.getElementById('rptResultStatus').value;
+  const bt = document.getElementById('rptBidType').value;
+
+  let data = [...allTenders];
+  if (from) data = data.filter(t => (t.date_created||'') >= from);
+  if (to) data = data.filter(t => (t.date_created||'') <= to);
+  if (branch) data = data.filter(t => t.branch_code === branch);
+  if (rs) data = data.filter(t => t.tender_result_status === rs);
+  if (bt) data = data.filter(t => t.bid_type === bt);
+
+  const now = new Date(); now.setHours(0,0,0,0);
+
+  if (type === 'pending') data = data.filter(t => t.submission_status === 'Pending');
+  else if (type === 'submitted') data = data.filter(t => t.submission_status === 'Submitted');
+  else if (type === 'result_awaited') data = data.filter(t => t.tender_result_status === 'Result Awaited');
+  else if (type === 'won') data = data.filter(t => t.tender_result_status === 'Won');
+  else if (type === 'lost') data = data.filter(t => t.tender_result_status === 'Lost');
+  else if (type === 'overdue') data = data.filter(t => {
+    if (!t.deadline) return false;
+    const d = new Date(t.deadline); d.setHours(0,0,0,0);
+    return d < now && !['Submitted','Not Submitted','Cancelled'].includes(t.submission_status);
+  });
+  else if (type === 'post_submission') data = data.filter(t =>
+    t.submission_status === 'Submitted' && ['Result Awaited',''].includes(t.tender_result_status||'')
+  );
+
+  if (type === 'monthly') {
+    const monthly = {};
+    data.forEach(t => {
+      const m = (t.date_created||'').slice(0,7) || 'Unknown';
+      if (!monthly[m]) monthly[m] = {month:m,total:0,submitted:0,won:0,lost:0,val:0};
+      monthly[m].total++;
+      if (t.submission_status==='Submitted') monthly[m].submitted++;
+      if (t.tender_result_status==='Won') monthly[m].won++;
+      if (t.tender_result_status==='Lost') monthly[m].lost++;
+      monthly[m].val += parseFloat(t.potential_amount_usd)||0;
+    });
+    const rows = Object.values(monthly).sort((a,b)=>b.month.localeCompare(a.month));
+    document.getElementById('rptHead').innerHTML = '<tr><th>Month</th><th>Total</th><th>Submitted</th><th>Won</th><th>Lost</th><th>Total Value USD</th></tr>';
+    document.getElementById('rptBody').innerHTML = rows.map(r =>
+      `<tr><td><b>${r.month}</b></td><td>${r.total}</td><td>${r.submitted}</td><td style="color:var(--success)">${r.won}</td><td style="color:var(--danger)">${r.lost}</td><td>${r.val>0?'$'+r.val.toLocaleString():'—'}</td></tr>`
+    ).join('') || '<tr><td colspan="6" style="padding:20px;color:var(--muted)">No data</td></tr>';
+    document.getElementById('rptCount').textContent = rows.length + ' months';
+    window._reportData = rows;
+    return;
+  }
+
+  document.getElementById('rptHead').innerHTML = `<tr>
+    <th>Tender ID</th><th>Date</th><th>Client</th><th>Branch</th><th>Bid Type</th>
+    <th>Deadline</th><th>Days Left</th><th>Work Status</th><th>Submission</th><th>Result</th>
+    <th>Assigned To</th><th>Potential USD</th>
+  </tr>`;
+  window._reportData = data;
+  document.getElementById('rptCount').textContent = `${data.length} record(s)`;
+  document.getElementById('rptBody').innerHTML = data.length ? data.map(t => `<tr>
+    <td><b>${t.tender_unique_id||'—'}</b></td>
+    <td>${fmt(t.date_created)}</td>
+    <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.customer_name)}</td>
+    <td>${esc(t.branch_code)}</td>
+    <td>${esc(t.bid_type)}</td>
+    <td>${fmt(t.deadline)}</td>
+    <td>${daysPill(t.days_left)}</td>
+    <td>${workBadge(t.work_status)}</td>
+    <td>${subBadge(t.submission_status)}</td>
+    <td>${resultBadge(t.tender_result_status)}</td>
+    <td>${esc(t.assigned_to)}</td>
+    <td>${t.potential_amount_usd ? '$'+parseFloat(t.potential_amount_usd).toLocaleString() : '—'}</td>
+  </tr>`).join('') : '<tr><td colspan="12" style="padding:40px;text-align:center;color:var(--muted)">No records found</td></tr>';
+}
+
+function exportReport() {
+  runReport();
+  const data = window._reportData || [];
+  if (!data.length) { toast('No data to export', 'error'); return; }
+  const isMonthly = !!data[0]?.month;
+  const headers = isMonthly
+    ? ['Month','Total','Submitted','Won','Lost','Total Value USD']
+    : ['Tender ID','Date Created','Client','Branch','Bid Type','Deadline','Days Left','Work Status','Submission Status','Result Status','Assigned To','Potential USD','Description','Submission Route','Marketing SPOC'];
+  const rows = isMonthly
+    ? data.map(r => [r.month,r.total,r.submitted,r.won,r.lost,r.val])
+    : data.map(t => [
+        t.tender_unique_id||'', t.date_created||'', t.customer_name||'', t.branch_code||'',
+        t.bid_type||'', t.deadline||'', t.days_left||'', t.work_status||'',
+        t.submission_status||'', t.tender_result_status||'', t.assigned_to||'',
+        t.potential_amount_usd||'', (t.bid_description||'').slice(0,100),
+        t.submission_route||'', t.marketing_person_spoc_name||''
+      ]);
+  const csv = [headers,...rows].map(r=>r.map(c=>'"'+String(c||'').replace(/"/g,'""')+'"').join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,﻿' + encodeURIComponent(csv);
+  a.download = 'report_' + (document.getElementById('rptType').value) + '_' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+  toast('Report exported', 'success');
 }
 
 // ── Helpers ───────────────────────────────────────────────────

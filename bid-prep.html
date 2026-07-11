@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Satguru — Bid Preparation</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --navy:#1a1a2e;--navy2:#16213e;--blue:#0f3460;--red:#e94560;
+  --bg:#f0f2f5;--card:#fff;--border:#e0e4ea;--text:#1a1a2e;
+  --muted:#6b7280;--success:#16a34a;--warning:#d97706;
+}
+body{font-family:'Segoe UI',sans-serif;background:var(--bg);color:var(--text);font-size:14px;min-height:100vh}
+
+/* Header */
+.header{background:linear-gradient(135deg,var(--navy) 0%,var(--navy2) 60%,var(--blue) 100%);color:white;padding:14px 28px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 12px rgba(0,0,0,.3);position:sticky;top:0;z-index:100}
+.logo{width:38px;height:38px;background:var(--red);border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:17px;color:white}
+.header h1{font-size:18px;font-weight:700}
+.header-sub{font-size:11px;opacity:.6}
+.header-right{display:flex;gap:10px;align-items:center}
+.nav-btn{background:rgba(255,255,255,.1);border:none;color:white;padding:7px 14px;border-radius:8px;cursor:pointer;font-size:12px;text-decoration:none;display:inline-flex;align-items:center;gap:5px}
+.nav-btn:hover{background:rgba(255,255,255,.2)}
+
+/* Tabs */
+.tabs-bar{background:var(--navy2);display:flex;gap:2px;padding:0 28px;border-bottom:2px solid rgba(255,255,255,.08)}
+.tab-btn{padding:13px 20px;font-size:13px;font-weight:500;color:rgba(255,255,255,.55);border:none;background:none;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;transition:all .2s;white-space:nowrap}
+.tab-btn:hover{color:rgba(255,255,255,.85)}
+.tab-btn.active{color:white;border-bottom-color:var(--red);font-weight:700}
+.tab-content{display:none;padding:28px}
+.tab-content.active{display:block}
+
+/* Layout */
+.page-grid{display:grid;grid-template-columns:340px 1fr;gap:20px;align-items:start}
+.card{background:var(--card);border-radius:12px;border:1px solid var(--border);margin-bottom:16px}
+.card-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.card-title{font-size:14px;font-weight:700}
+.card-body{padding:20px}
+
+/* Form controls */
+.form-group{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+.form-group label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+.form-control{padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text);background:white;outline:none;transition:border .15s;width:100%}
+.form-control:focus{border-color:var(--blue)}
+textarea.form-control{resize:vertical;min-height:100px;font-family:inherit}
+
+/* Buttons */
+.btn{padding:8px 16px;border-radius:8px;border:none;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:var(--blue);color:white}
+.btn-primary:hover{background:#0a2a4e}
+.btn-outline{background:white;color:var(--navy);border:1px solid var(--border)}
+.btn-outline:hover{background:var(--bg)}
+.btn-success{background:var(--success);color:white}
+.btn-success:hover{background:#15803d}
+.btn-red{background:var(--red);color:white}
+.btn-sm{padding:5px 12px;font-size:12px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* Section cards */
+.section-card{background:var(--card);border:1px solid var(--border);border-radius:10px;margin-bottom:12px;overflow:hidden}
+.section-header{padding:12px 16px;background:#f8fafc;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;cursor:pointer}
+.section-title{font-size:13px;font-weight:700;color:var(--navy)}
+.section-status{font-size:11px;padding:2px 8px;border-radius:12px;font-weight:600}
+.status-empty{background:#f3f4f6;color:var(--muted)}
+.status-generated{background:#dcfce7;color:#15803d}
+.status-generating{background:#dbeafe;color:#1d4ed8}
+.section-body{padding:16px;display:none}
+.section-body.open{display:block}
+.section-actions{display:flex;gap:8px;margin-bottom:10px}
+
+/* Financial table */
+.price-table{width:100%;border-collapse:collapse;font-size:13px}
+.price-table th{background:var(--navy);color:white;padding:10px 12px;text-align:left;font-size:12px}
+.price-table td{padding:8px 12px;border-bottom:1px solid var(--border)}
+.price-table tr:last-child td{border-bottom:none}
+.price-table input{border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-size:12px;width:100%;outline:none}
+.price-table input:focus{border-color:var(--blue)}
+.total-row td{font-weight:700;background:#f0f4ff}
+.grand-total-row td{font-weight:800;font-size:14px;background:var(--navy);color:white}
+
+/* Toast */
+.toast-wrap{position:fixed;top:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px}
+.toast{padding:12px 18px;border-radius:10px;font-size:13px;font-weight:600;color:white;box-shadow:0 4px 16px rgba(0,0,0,.2);animation:slideIn .3s ease}
+.toast.success{background:var(--success)}
+.toast.error{background:#dc2626}
+.toast.info{background:var(--blue)}
+@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+
+/* Spinner */
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.4);border-top-color:white;border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Preview panel */
+.preview-text{font-size:13px;line-height:1.7;color:var(--text);white-space:pre-wrap;background:#fafafa;border:1px solid var(--border);border-radius:8px;padding:14px;max-height:300px;overflow-y:auto}
+
+/* Progress bar */
+.progress-bar{height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin-bottom:16px}
+.progress-fill{height:100%;background:var(--red);border-radius:2px;transition:width .3s}
+
+@media(max-width:900px){.page-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div style="display:flex;align-items:center;gap:14px">
+    <div class="logo">S</div>
+    <div>
+      <div style="font-size:17px;font-weight:700">Bid Preparation Assistant</div>
+      <div class="header-sub">AI-powered · Gemini 2.5 Flash · Satguru Travel Group</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <a href="tenders.html" class="nav-btn">← Bid Management</a>
+    <a href="index.html" class="nav-btn">Portal Tracker</a>
+  </div>
+</div>
+
+<div class="tabs-bar">
+  <button class="tab-btn active" onclick="switchTab('technical')">📄 Technical Proposal</button>
+  <button class="tab-btn" onclick="switchTab('financial')">💰 Financial Proposal</button>
+</div>
+
+<div id="tab-technical" class="tab-content active">
+  <div class="page-grid">
+
+    <!-- Left: Tender Info + RFP -->
+    <div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">Tender Details</div></div>
+        <div class="card-body">
+          <div class="form-group">
+            <label>Client / Organisation *</label>
+            <input class="form-control" id="t_client" placeholder="e.g. Ministry of Finance, UAE"/>
+          </div>
+          <div class="form-group">
+            <label>Tender Reference</label>
+            <input class="form-control" id="t_reference" placeholder="e.g. MOF/2026/TM/001"/>
+          </div>
+          <div class="form-group">
+            <label>Bid Type</label>
+            <select class="form-control" id="t_bid_type">
+              <option>RFP</option><option>RFQ</option><option>EOI</option><option>SR</option><option>Tender</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Services Required</label>
+            <input class="form-control" id="t_services" placeholder="e.g. Corporate Travel Management, Air Ticketing, Hotels"/>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-title">RFP / Requirements</div><span style="font-size:11px;color:var(--muted)">Optional — paste key points</span></div>
+        <div class="card-body">
+          <textarea class="form-control" id="t_rfp_text" rows="8" placeholder="Paste key requirements from the RFP/RFQ here. The AI will use this to tailor the proposal content.&#10;&#10;Example:&#10;- Dedicated account manager required&#10;- 24/7 emergency support&#10;- Online booking tool integration&#10;- Monthly MIS reports&#10;- SLA: tickets within 2 hours"></textarea>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-title">Generate All Sections</div></div>
+        <div class="card-body">
+          <p style="font-size:12px;color:var(--muted);margin-bottom:14px">Generate all sections at once, or click Generate on individual sections below.</p>
+          <div class="progress-bar" id="progressBar" style="display:none"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <button class="btn btn-primary" onclick="generateAll()" id="btnGenerateAll">✨ Generate All Sections</button>
+            <button class="btn btn-success" onclick="exportTechnical()" id="btnExportTech">⬇ Download Word</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Sections -->
+    <div>
+      <div style="font-size:13px;font-weight:600;color:var(--muted);margin-bottom:14px;text-transform:uppercase;letter-spacing:.5px">Proposal Sections</div>
+
+      <!-- Cover Letter -->
+      <div class="section-card" id="sec_cover_letter">
+        <div class="section-header" onclick="toggleSection('cover_letter')">
+          <div class="section-title">Cover Letter</div>
+          <div style="display:flex;gap:10px;align-items:center">
+            <span class="section-status status-empty" id="status_cover_letter">Not generated</span>
+            <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();generateSection('cover_letter')" id="btn_cover_letter">Generate</button>
+          </div>
+        </div>
+        <div class="section-body" id="body_cover_letter">
+          <textarea class="form-control preview-text" id="text_cover_letter" rows="10" placeholder="Click Generate to create content with AI..."></textarea>
+        </div>
+      </div>
+
+      <!-- Company Profile -->
+      <div class="section-card" id="sec_company_profile">
+        <div class="section-header" onclick="toggleSection('company_profile')">
+          <div class="section-title">1. Company Profile</div>
+          <div style="display:flex;gap:10px;align-items:center">
+            <span class="section-status status-empty" id="status_company_profile">Not generated</span>
+            <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();generateSection('company_profile')" id="btn_company_profile">Generate</button>
+          </div>
+        </div>
+        <div class="section-body" id="body_company_profile">
+          <textarea class="form-control" id="text_company_profile" rows="12" placeholder="Click Generate to create content with AI..."></textarea>
+        </div>
+      </div>
+
+      <!-- Understanding -->
+      <div class="section-card" id="sec_understanding">
+        <div class="section-header" onclick="toggleSection('understanding')">
+          <div class="section-title">2. Understanding of Requirements</div>
+          <div style="display:flex;gap:10px;align-items:center">
+            <span class="section-status status-empty" id="status_understanding">Not generated</span>
+            <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();generateSection('understanding')" id="btn_understanding">Generate</button>
+          </div>
+        </div>
+        <div class="section-body" id="body_understanding">
+          <textarea class="form-control" id="text_understanding" rows="12" placeholder="Click Generate to create content with AI..."></textarea>
+        </div>
+      </div>
+
+      <!-- Methodology -->
+      <div class="section-card" id="sec_methodology">
+        <div class="section-header" onclick="toggleSection('methodology')">
+          <div class="section-title">3. Proposed Methodology & Approach</div>
+          <div style="display:flex;gap:10px;align-items:center">
+            <span class="section-status status-empty" id="status_methodology">Not generated</span>
+            <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();generateSection('methodology')" id="btn_methodology">Generate</button>
+          </div>
+        </div>
+        <div class="section-body" id="body_methodology">
+          <textarea class="form-control" id="text_methodology" rows="12" placeholder="Click Generate to create content with AI..."></textarea>
+        </div>
+      </div>
+
+      <!-- Experience -->
+      <div class="section-card" id="sec_experience">
+        <div class="section-header" onclick="toggleSection('experience')">
+          <div class="section-title">4. Relevant Experience</div>
+          <div style="display:flex;gap:10px;align-items:center">
+            <span class="section-status status-empty" id="status_experience">Not generated</span>
+            <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();generateSection('experience')" id="btn_experience">Generate</button>
+          </div>
+        </div>
+        <div class="section-body" id="body_experience">
+          <textarea class="form-control" id="text_experience" rows="12" placeholder="Click Generate to create content with AI..."></textarea>
+        </div>
+      </div>
+
+      <!-- Team -->
+      <div class="section-card" id="sec_team">
+        <div class="section-header" onclick="toggleSection('team')">
+          <div class="section-title">5. Key Personnel & Team</div>
+          <div style="display:flex;gap:10px;align-items:center">
+            <span class="section-status status-empty" id="status_team">Not generated</span>
+            <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();generateSection('team')" id="btn_team">Generate</button>
+          </div>
+        </div>
+        <div class="section-body" id="body_team">
+          <textarea class="form-control" id="text_team" rows="12" placeholder="Click Generate to create content with AI..."></textarea>
+        </div>
+      </div>
+
+      <!-- Compliance -->
+      <div class="section-card" id="sec_compliance">
+        <div class="section-header" onclick="toggleSection('compliance')">
+          <div class="section-title">6. Compliance & Regulatory</div>
+          <div style="display:flex;gap:10px;align-items:center">
+            <span class="section-status status-empty" id="status_compliance">Not generated</span>
+            <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();generateSection('compliance')" id="btn_compliance">Generate</button>
+          </div>
+        </div>
+        <div class="section-body" id="body_compliance">
+          <textarea class="form-control" id="text_compliance" rows="12" placeholder="Click Generate to create content with AI..."></textarea>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ── FINANCIAL PROPOSAL ── -->
+<div id="tab-financial" class="tab-content">
+  <div class="page-grid">
+
+    <!-- Left: Details -->
+    <div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">Tender Details</div></div>
+        <div class="card-body">
+          <div class="form-group">
+            <label>Client / Organisation *</label>
+            <input class="form-control" id="f_client" placeholder="e.g. Ministry of Finance, UAE"/>
+          </div>
+          <div class="form-group">
+            <label>Tender Reference</label>
+            <input class="form-control" id="f_reference" placeholder="e.g. MOF/2026/TM/001"/>
+          </div>
+          <div class="form-group">
+            <label>Currency</label>
+            <select class="form-control" id="f_currency">
+              <option>USD</option><option>AED</option><option>EUR</option><option>GBP</option><option>INR</option><option>KES</option><option>NGN</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Contract Period</label>
+            <input class="form-control" id="f_period" placeholder="e.g. 1 year, 3+2 years"/>
+          </div>
+          <div class="form-group">
+            <label>Notes / Assumptions</label>
+            <textarea class="form-control" id="f_notes" rows="4" placeholder="e.g. Prices based on estimated volumes. Fuel surcharges not included."></textarea>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-title">Quick Add Service</div></div>
+        <div class="card-body">
+          <div class="form-group">
+            <label>Service / Item</label>
+            <select class="form-control" id="qa_service" onchange="prefillUnit()">
+              <option value="">— Select or type below —</option>
+              <option>Air Ticket (Domestic)</option>
+              <option>Air Ticket (International)</option>
+              <option>Hotel Booking</option>
+              <option>Visa Processing</option>
+              <option>Airport Transfer</option>
+              <option>Car Rental (per day)</option>
+              <option>Travel Insurance</option>
+              <option>MICE / Event Management</option>
+              <option>Management Fee (monthly)</option>
+              <option>Transaction Fee</option>
+              <option>Online Booking Tool License</option>
+              <option>24/7 Support Service</option>
+              <option>Cargo / Freight</option>
+              <option>Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Custom Description</label>
+            <input class="form-control" id="qa_custom" placeholder="Or type a custom service name"/>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+            <div class="form-group">
+              <label>Unit</label>
+              <input class="form-control" id="qa_unit" placeholder="per ticket"/>
+            </div>
+            <div class="form-group">
+              <label>Rate</label>
+              <input class="form-control" id="qa_rate" type="number" placeholder="0.00"/>
+            </div>
+            <div class="form-group">
+              <label>Qty / Est.</label>
+              <input class="form-control" id="qa_qty" type="number" placeholder="1"/>
+            </div>
+          </div>
+          <button class="btn btn-primary" onclick="addLineItem()" style="width:100%">+ Add to Proposal</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-title">Export</div></div>
+        <div class="card-body">
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <button class="btn btn-success" onclick="exportFinancial()">⬇ Download Word (.docx)</button>
+            <button class="btn btn-outline" onclick="clearAllItems()">Clear All</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Price table -->
+    <div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">💰 Pricing Table</div>
+          <span id="grandTotalDisplay" style="font-size:15px;font-weight:800;color:var(--blue)">Total: —</span>
+        </div>
+        <div class="card-body" style="padding:0;overflow-x:auto">
+          <table class="price-table">
+            <thead>
+              <tr>
+                <th style="width:30%">Service / Item</th>
+                <th>Unit</th>
+                <th>Rate</th>
+                <th>Qty</th>
+                <th>Total</th>
+                <th style="width:40px"></th>
+              </tr>
+            </thead>
+            <tbody id="priceTableBody">
+              <tr id="emptyRow">
+                <td colspan="6" style="text-align:center;padding:40px;color:var(--muted)">
+                  Add services using the form on the left
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" id="summaryCard" style="display:none">
+        <div class="card-header"><div class="card-title">Summary</div></div>
+        <div class="card-body" id="summaryBody"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script>
+const API = '';  // same origin
+
+// ── Tab switching ─────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  document.querySelector(`.tab-btn[onclick="switchTab('${name}')"]`).classList.add('active');
+}
+
+// ── Technical: Section toggle ─────────────────────────────────
+function toggleSection(key) {
+  const body = document.getElementById('body_' + key);
+  body.classList.toggle('open');
+}
+
+function openSection(key) {
+  document.getElementById('body_' + key).classList.add('open');
+}
+
+// ── Technical: Generate section ───────────────────────────────
+async function generateSection(key) {
+  const client = document.getElementById('t_client').value.trim();
+  if (!client) { toast('Enter client name first', 'error'); return; }
+
+  const btn = document.getElementById('btn_' + key);
+  const status = document.getElementById('status_' + key);
+  const textarea = document.getElementById('text_' + key);
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>';
+  status.textContent = 'Generating…';
+  status.className = 'section-status status-generating';
+  openSection(key);
+
+  try {
+    const resp = await fetch('/api/bid/generate', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        section: key,
+        rfp_text: document.getElementById('t_rfp_text').value.trim(),
+        context: {
+          client,
+          reference: document.getElementById('t_reference').value.trim(),
+          bid_type: document.getElementById('t_bid_type').value,
+          description: document.getElementById('t_services').value.trim(),
+        }
+      })
+    });
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error);
+    textarea.value = data.text;
+    status.textContent = 'Generated ✓';
+    status.className = 'section-status status-generated';
+    toast('Section generated', 'success');
+  } catch (e) {
+    status.textContent = 'Error';
+    status.className = 'section-status status-empty';
+    toast('Error: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = 'Regenerate';
+  }
+}
+
+// ── Technical: Generate all ───────────────────────────────────
+const ALL_SECTIONS = ['cover_letter','company_profile','understanding','methodology','experience','team','compliance'];
+
+async function generateAll() {
+  const client = document.getElementById('t_client').value.trim();
+  if (!client) { toast('Enter client name first', 'error'); return; }
+
+  const btn = document.getElementById('btnGenerateAll');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Generating…';
+  document.getElementById('progressBar').style.display = 'block';
+
+  for (let i = 0; i < ALL_SECTIONS.length; i++) {
+    const pct = Math.round((i / ALL_SECTIONS.length) * 100);
+    document.getElementById('progressFill').style.width = pct + '%';
+    await generateSection(ALL_SECTIONS[i]);
+    await new Promise(r => setTimeout(r, 300));
+  }
+
+  document.getElementById('progressFill').style.width = '100%';
+  setTimeout(() => { document.getElementById('progressBar').style.display = 'none'; }, 1000);
+  btn.disabled = false;
+  btn.innerHTML = '✨ Regenerate All';
+  toast('All sections generated! Review and edit, then download Word.', 'success');
+}
+
+// ── Technical: Export Word ────────────────────────────────────
+async function exportTechnical() {
+  const client = document.getElementById('t_client').value.trim();
+  if (!client) { toast('Enter client name first', 'error'); return; }
+
+  const sections = {};
+  ALL_SECTIONS.forEach(k => {
+    const t = document.getElementById('text_' + k)?.value?.trim();
+    if (t) sections[k] = t;
+  });
+
+  if (Object.keys(sections).length === 0) {
+    toast('Generate at least one section before exporting', 'error'); return;
+  }
+
+  const btn = document.getElementById('btnExportTech');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Building Word doc…';
+
+  try {
+    const resp = await fetch('/api/bid/export-docx', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        type: 'technical',
+        context: {
+          client,
+          reference: document.getElementById('t_reference').value.trim(),
+          bid_type: document.getElementById('t_bid_type').value,
+        },
+        sections
+      })
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Technical_Proposal_${client.replace(/\s+/g,'_')}.docx`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('Technical Proposal downloaded!', 'success');
+  } catch(e) {
+    toast('Export failed: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '⬇ Download Word';
+  }
+}
+
+// ── Financial: Line items ─────────────────────────────────────
+let lineItems = [];
+
+const UNIT_MAP = {
+  'Air Ticket (Domestic)': 'per ticket',
+  'Air Ticket (International)': 'per ticket',
+  'Hotel Booking': 'per night',
+  'Visa Processing': 'per visa',
+  'Airport Transfer': 'per transfer',
+  'Car Rental (per day)': 'per day',
+  'Travel Insurance': 'per person',
+  'MICE / Event Management': 'per event',
+  'Management Fee (monthly)': 'per month',
+  'Transaction Fee': 'per transaction',
+  'Online Booking Tool License': 'per month',
+  '24/7 Support Service': 'per month',
+  'Cargo / Freight': 'per shipment',
+};
+
+function prefillUnit() {
+  const svc = document.getElementById('qa_service').value;
+  if (UNIT_MAP[svc]) document.getElementById('qa_unit').value = UNIT_MAP[svc];
+}
+
+function addLineItem() {
+  const svc = document.getElementById('qa_custom').value.trim() || document.getElementById('qa_service').value;
+  if (!svc || svc === '— Select or type below —') { toast('Select or enter a service', 'error'); return; }
+  const unit = document.getElementById('qa_unit').value.trim() || 'per unit';
+  const rate = parseFloat(document.getElementById('qa_rate').value) || 0;
+  const qty  = parseFloat(document.getElementById('qa_qty').value) || 1;
+
+  lineItems.push({ id: Date.now(), service: svc, unit, rate, qty, total: rate * qty });
+  renderPriceTable();
+
+  // Reset quick add
+  document.getElementById('qa_service').value = '';
+  document.getElementById('qa_custom').value = '';
+  document.getElementById('qa_unit').value = '';
+  document.getElementById('qa_rate').value = '';
+  document.getElementById('qa_qty').value = '';
+}
+
+function removeItem(id) {
+  lineItems = lineItems.filter(i => i.id !== id);
+  renderPriceTable();
+}
+
+function updateItem(id, field, value) {
+  const item = lineItems.find(i => i.id === id);
+  if (!item) return;
+  item[field] = field === 'service' || field === 'unit' ? value : parseFloat(value) || 0;
+  item.total = item.rate * item.qty;
+  updateTotals();
+}
+
+function renderPriceTable() {
+  const tbody = document.getElementById('priceTableBody');
+  if (!lineItems.length) {
+    tbody.innerHTML = '<tr id="emptyRow"><td colspan="6" style="text-align:center;padding:40px;color:var(--muted)">Add services using the form on the left</td></tr>';
+    document.getElementById('grandTotalDisplay').textContent = 'Total: —';
+    document.getElementById('summaryCard').style.display = 'none';
+    return;
+  }
+
+  tbody.innerHTML = lineItems.map(item => `
+    <tr>
+      <td><input value="${esc(item.service)}" onchange="updateItem(${item.id},'service',this.value)" style="min-width:160px"/></td>
+      <td><input value="${esc(item.unit)}" onchange="updateItem(${item.id},'unit',this.value)" style="width:90px"/></td>
+      <td><input type="number" value="${item.rate}" onchange="updateItem(${item.id},'rate',this.value);recalcRow(${item.id})" style="width:90px"/></td>
+      <td><input type="number" value="${item.qty}" onchange="updateItem(${item.id},'qty',this.value);recalcRow(${item.id})" style="width:60px"/></td>
+      <td id="row_total_${item.id}" style="font-weight:600">${fmtNum(item.total)}</td>
+      <td><button onclick="removeItem(${item.id})" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:16px;padding:2px">✕</button></td>
+    </tr>`).join('');
+
+  updateTotals();
+}
+
+function recalcRow(id) {
+  const item = lineItems.find(i => i.id === id);
+  if (!item) return;
+  item.total = item.rate * item.qty;
+  const cell = document.getElementById('row_total_' + id);
+  if (cell) cell.textContent = fmtNum(item.total);
+  updateTotals();
+}
+
+function updateTotals() {
+  const grand = lineItems.reduce((s,i) => s + i.total, 0);
+  const cur = document.getElementById('f_currency')?.value || 'USD';
+  document.getElementById('grandTotalDisplay').textContent = `Total: ${cur} ${fmtNum(grand)}`;
+
+  // Summary card
+  const summary = document.getElementById('summaryCard');
+  const body = document.getElementById('summaryBody');
+  summary.style.display = 'block';
+  body.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div><div style="font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase">Line Items</div><div style="font-size:24px;font-weight:800">${lineItems.length}</div></div>
+      <div><div style="font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase">Grand Total</div><div style="font-size:24px;font-weight:800;color:var(--blue)">${cur} ${fmtNum(grand)}</div></div>
+    </div>`;
+}
+
+function clearAllItems() {
+  if (lineItems.length && !confirm('Clear all line items?')) return;
+  lineItems = [];
+  renderPriceTable();
+}
+
+// ── Financial: Export Word ────────────────────────────────────
+async function exportFinancial() {
+  const client = document.getElementById('f_client').value.trim();
+  if (!client) { toast('Enter client name first', 'error'); return; }
+  if (!lineItems.length) { toast('Add at least one line item', 'error'); return; }
+
+  const btn = event.target;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Building…';
+
+  try {
+    const resp = await fetch('/api/bid/export-docx', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        type: 'financial',
+        context: {
+          client,
+          reference: document.getElementById('f_reference').value.trim(),
+          bid_type: '',
+          currency: document.getElementById('f_currency').value,
+          period: document.getElementById('f_period').value.trim(),
+          notes: document.getElementById('f_notes').value.trim(),
+        },
+        line_items: lineItems.map(i => ({ service: i.service, unit: i.unit, rate: i.rate, qty: i.qty }))
+      })
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Financial_Proposal_${client.replace(/\s+/g,'_')}.docx`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('Financial Proposal downloaded!', 'success');
+  } catch(e) {
+    toast('Export failed: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '⬇ Download Word (.docx)';
+  }
+}
+
+// ── Helpers ───────────────────────────────────────────────────
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fmtNum(n) { return Number(n).toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+function toast(msg, type='info') {
+  const wrap = document.getElementById('toastWrap');
+  const t = document.createElement('div');
+  t.className = 'toast ' + type;
+  t.textContent = msg;
+  wrap.appendChild(t);
+  setTimeout(() => t.remove(), 4000);
+}
+</script>
+</body>
+</html>

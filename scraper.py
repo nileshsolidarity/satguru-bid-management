@@ -240,11 +240,12 @@ async def run_scraper(headless=True, save_fn=None, load_fn=None):
 
 
 async def fetch_tender_page(url: str) -> str:
-    """Log in to the appropriate portal and return the tender detail page as HTML."""
+    """Log in to the portal, scrape tender details, return a clean standalone HTML page."""
     is_gt = "globaltenders.com" in url
     is_ti = "tendersinfo" in url
     creds = CREDS["globaltenders"] if is_gt else CREDS["tendersinfo"] if is_ti else None
 
+    details = {}
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         context = await browser.new_context(
@@ -253,7 +254,7 @@ async def fetch_tender_page(url: str) -> str:
         page = await context.new_page()
         try:
             if creds:
-                log(f"Logging in to fetch detail: {url}")
+                log(f"Logging in to {creds['name']} to fetch: {url}")
                 await page.goto(creds["login_url"], timeout=30000)
                 await page.wait_for_timeout(2000)
                 if is_gt:
@@ -265,31 +266,137 @@ async def fetch_tender_page(url: str) -> str:
                     await page.fill('input[name="user_id"]', creds["email"])
                     await page.fill('input[name="password"]', creds["password"])
                     await page.click('button:has-text("Sign In")')
-                await page.wait_for_timeout(4000)
+                await page.wait_for_timeout(5000)
+                log(f"After login, URL: {page.url}")
 
             await page.goto(url, timeout=30000)
-            await page.wait_for_timeout(3000)
+            await page.wait_for_timeout(4000)
+            final_url = page.url
+            log(f"Tender page final URL: {final_url}")
 
-            html = await page.content()
-            # Inject base tag so relative links/images resolve correctly
-            base = f'<base href="{url}" target="_blank">'
-            html = html.replace("<head>", f"<head>{base}", 1)
-            # Add a close banner at the top
-            banner = (
-                '<div style="position:fixed;top:0;left:0;right:0;background:#1a1a2e;color:white;'
-                'padding:10px 20px;display:flex;align-items:center;justify-content:space-between;'
-                'z-index:99999;font-family:sans-serif;font-size:13px;">'
-                '<span>&#x1F4CB; Satguru Bid Management &mdash; Tender Preview</span>'
-                '<button onclick="window.close()" style="background:#e94560;border:none;color:white;'
-                'padding:6px 14px;border-radius:6px;cursor:pointer;font-weight:600;">&times; Close</button>'
-                '</div><div style="height:48px"></div>'
-            )
-            html = html.replace("<body>", f"<body>{banner}", 1)
+            # Check for login redirect (session didn't persist)
+            if any(x in final_url.lower() for x in ["login", "sign-up", "sign_in", "signin"]) and final_url.rstrip("/") != url.rstrip("/"):
+                details = {"error_type": "login_redirect", "pageUrl": url}
+            else:
+                page_text_start = await page.evaluate("() => document.body.innerText.slice(0, 300).toLowerCase()")
+                if "page not found" in page_text_start or "not a functioning page" in page_text_start or "404" in page_text_start:
+                    details = {"error_type": "expired", "pageUrl": url}
+                else:
+                    details = await page.evaluate("""
+                    () => {
+                        const get = sel => document.querySelector(sel)?.innerText?.trim() || '';
+                        const pairs = {};
+                        document.querySelectorAll('table tr').forEach(row => {
+                            const cells = row.querySelectorAll('td');
+                            if (cells.length >= 2) {
+                                const k = cells[0].innerText.trim().replace(/:$/, '');
+                                const v = cells[1].innerText.trim();
+                                if (k && v && k.length < 60) pairs[k] = v;
+                            }
+                        });
+                        return {
+                            title: get('h1') || get('h2') || get('.tender-title') || get('[itemprop="name"]'),
+                            body: document.body.innerText.slice(0, 10000),
+                            pairs,
+                            pageUrl: location.href,
+                        };
+                    }
+                    """)
         except Exception as e:
-            html = f"<html><body><h2>Error loading tender</h2><p>{e}</p><p><a href='{url}' target='_blank'>Open directly</a></p></body></html>"
+            log(f"fetch_tender_page error: {e}")
+            details = {"error_type": "exception", "error_msg": str(e)}
         finally:
             await browser.close()
-    return html
+
+    # ── Build output HTML ──────────────────────────────────────────────────
+    error_type = details.get("error_type", "")
+    page_url = details.get("pageUrl", url)
+
+    if error_type == "expired":
+        content_html = f"""
+        <div class="warn-box">
+          <strong>This tender is no longer available on the portal.</strong><br>
+          The link may have expired or the tender was removed. This is common for older synced tenders.<br><br>
+          <b>What to do:</b> Click <em>Sync Portals</em> on the main page to fetch fresh tenders with valid links.
+        </div>
+        <div class="source-box">Original URL: <a href="{url}" target="_blank">{url}</a></div>
+        """
+        title = "Tender Expired"
+    elif error_type == "login_redirect":
+        content_html = f"""
+        <div class="error-box">
+          Login did not persist when navigating to the tender page.<br>
+          <a href="{url}" target="_blank">Try opening directly on the portal →</a>
+        </div>"""
+        title = "Login Error"
+    elif error_type == "exception":
+        content_html = f"""
+        <div class="error-box">
+          Error: {details.get('error_msg', 'Unknown error')}<br>
+          <a href="{url}" target="_blank">Try opening directly →</a>
+        </div>"""
+        title = "Error"
+    else:
+        title = details.get("title", "") or "Tender Detail"
+        pairs = details.get("pairs", {})
+        body_text = details.get("body", "")
+
+        pairs_rows = "".join(
+            f'<tr><td class="lc">{k}</td><td>{v}</td></tr>'
+            for k, v in pairs.items() if k and v
+        )
+        table_html = f'<table class="dt"><tbody>{pairs_rows}</tbody></table>' if pairs_rows else ""
+
+        lines = [l.strip() for l in body_text.split("\n") if l.strip() and len(l.strip()) > 4]
+        body_html = "".join(f"<p>{l}</p>" for l in lines[:150])
+
+        content_html = f"""
+        {table_html}
+        <div class="full-text"><h3>Page Content</h3>{body_html}</div>
+        <div class="source-box">Source: <a href="{page_url}" target="_blank">{page_url}</a></div>
+        """
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>{title}</title>
+<style>
+  *{{box-sizing:border-box;margin:0;padding:0}}
+  body{{font-family:'Segoe UI',sans-serif;background:#f0f2f5;color:#1a1a2e}}
+  .topbar{{position:sticky;top:0;background:#1a1a2e;color:white;padding:12px 24px;
+    display:flex;align-items:center;justify-content:space-between;z-index:100;
+    box-shadow:0 2px 8px rgba(0,0,0,.3)}}
+  .tl{{font-size:15px;font-weight:700}}.ts{{font-size:11px;opacity:.6;margin-top:2px}}
+  .close-btn{{background:#e94560;border:none;color:white;padding:7px 16px;
+    border-radius:7px;cursor:pointer;font-weight:700;font-size:13px}}
+  .container{{max-width:960px;margin:24px auto;padding:0 20px 60px}}
+  .card{{background:white;border-radius:12px;border:1px solid #e0e4ea;padding:24px;margin-bottom:20px}}
+  .card h2{{font-size:18px;font-weight:700;color:#1a1a2e;margin-bottom:16px;line-height:1.4}}
+  .dt{{width:100%;border-collapse:collapse;margin-bottom:20px}}
+  .dt td{{padding:9px 12px;border-bottom:1px solid #f0f2f5;font-size:13px;vertical-align:top}}
+  .lc{{font-weight:600;color:#6b7280;width:36%;background:#f8fafc}}
+  .full-text h3{{font-size:12px;font-weight:700;color:#9ca3af;margin:16px 0 10px;text-transform:uppercase;letter-spacing:.5px}}
+  .full-text p{{font-size:13px;color:#374151;line-height:1.6;margin-bottom:5px;padding:3px 0;border-bottom:1px solid #f9fafb}}
+  .error-box{{background:#fee2e2;color:#991b1b;padding:20px;border-radius:10px;line-height:1.7}}
+  .warn-box{{background:#fef3c7;color:#92400e;padding:20px;border-radius:10px;line-height:1.8}}
+  .source-box{{margin-top:16px;padding:12px;background:#f0f4ff;border-radius:8px;font-size:12px;color:#555}}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div><div class="tl">📋 Satguru — Tender Detail</div><div class="ts">Fetched via automated login · Read-only</div></div>
+  <button class="close-btn" onclick="window.close()">✕ Close</button>
+</div>
+<div class="container">
+  <div class="card">
+    <h2>{title}</h2>
+    {content_html}
+  </div>
+</div>
+</body>
+</html>"""
 
 
 if __name__ == "__main__":

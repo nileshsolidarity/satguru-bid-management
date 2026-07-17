@@ -318,6 +318,7 @@
     <button class="tab-btn" id="tab-btn-form" style="display:none" onclick="switchTab('form')">Edit Tender</button>
     <button class="tab-btn" onclick="switchTab('masters')">Masters</button>
     <button class="tab-btn" onclick="switchTab('reports')">Reports</button>
+    <button class="tab-btn" onclick="switchTab('import')">Import Excel</button>
   </div>
 
   <!-- ── DASHBOARD ── -->
@@ -773,6 +774,84 @@
 
 <!-- Toast container -->
 <div class="toast-wrap" id="toastWrap"></div>
+
+  <!-- ── IMPORT ── -->
+  <div id="tab-import" class="tab-content">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <div>
+        <h2 style="font-size:18px;font-weight:700">Import Excel Bid Sheet</h2>
+        <p style="font-size:13px;color:var(--muted);margin-top:4px">Upload your existing bid sheet. Rows are validated before import — errors are shown row by row.</p>
+      </div>
+    </div>
+
+    <!-- Step 1: Upload -->
+    <div class="card" style="margin-bottom:16px" id="importStep1">
+      <div class="card-header"><div class="card-title">Step 1 — Upload File</div></div>
+      <div class="card-body">
+        <div style="border:2px dashed var(--border);border-radius:10px;padding:40px;text-align:center;cursor:pointer;transition:all .2s" id="importDropZone" onclick="document.getElementById('importFileInput').click()" ondragover="event.preventDefault();this.style.borderColor='var(--blue)'" ondragleave="this.style.borderColor='var(--border)'" ondrop="handleImportDrop(event)">
+          <div style="font-size:32px;margin-bottom:10px">📊</div>
+          <div style="font-size:15px;font-weight:600;color:var(--navy)">Click to browse or drag & drop</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:6px">Supports .xlsx, .xls, .csv — your existing bid sheet format</div>
+          <input type="file" id="importFileInput" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleImportFile(this.files[0])"/>
+        </div>
+        <div style="margin-top:14px;padding:14px;background:#f0f4ff;border-radius:8px;font-size:12px;color:var(--blue)">
+          <b>Column mapping is automatic.</b> The importer recognises your existing bid sheet column headers (Date Created, Customer Name, Tender Reference ID, Branch Code, Deadline, Status, etc.) and maps them directly. No manual mapping needed.
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 2: Preview & validate -->
+    <div class="card" style="margin-bottom:16px;display:none" id="importStep2">
+      <div class="card-header">
+        <div class="card-title">Step 2 — Validation Results</div>
+        <div id="importSummaryBadges" style="display:flex;gap:8px"></div>
+      </div>
+      <div class="card-body" style="padding:0">
+        <div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px">
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+            <input type="checkbox" id="importShowErrors" checked onchange="renderImportTable()"> Show errors
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+            <input type="checkbox" id="importShowOk" checked onchange="renderImportTable()"> Show valid rows
+          </label>
+          <span style="flex:1"></span>
+          <button class="btn btn-outline btn-sm" onclick="resetImport()">← Choose different file</button>
+          <button class="btn btn-primary" id="importConfirmBtn" onclick="confirmImport()">Import Valid Rows</button>
+        </div>
+        <div style="overflow-x:auto">
+          <table style="min-width:900px">
+            <thead>
+              <tr>
+                <th style="width:50px">Row</th>
+                <th style="width:80px">Status</th>
+                <th>Client</th>
+                <th>Branch</th>
+                <th>Bid Type</th>
+                <th>Deadline</th>
+                <th>Work Status</th>
+                <th>Result</th>
+                <th>Potential USD</th>
+                <th>Issues</th>
+              </tr>
+            </thead>
+            <tbody id="importTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 3: Progress -->
+    <div class="card" style="display:none" id="importStep3">
+      <div class="card-header"><div class="card-title">Step 3 — Importing…</div></div>
+      <div class="card-body">
+        <div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-bottom:12px">
+          <div id="importProgressFill" style="height:100%;background:var(--blue);border-radius:4px;width:0%;transition:width .3s"></div>
+        </div>
+        <div id="importProgressText" style="font-size:13px;color:var(--muted)">Preparing…</div>
+        <div id="importResultBox" style="margin-top:16px;display:none"></div>
+      </div>
+    </div>
+  </div>
 
   <!-- ── REPORTS ── -->
   <div id="tab-reports" class="tab-content">
@@ -1758,6 +1837,160 @@ function exportExcel() {
   a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
   a.download = 'tenders_' + new Date().toISOString().slice(0,10) + '.csv';
   a.click();
+}
+
+// ── Import ────────────────────────────────────────────────────
+let importRows = [];
+
+function handleImportDrop(e) {
+  e.preventDefault();
+  document.getElementById('importDropZone').style.borderColor = 'var(--border)';
+  const file = e.dataTransfer.files[0];
+  if (file) handleImportFile(file);
+}
+
+async function handleImportFile(file) {
+  if (!file) return;
+  if (!file.name.match(/\.(xlsx|xls|csv)$/i)) { toast('Please upload an Excel or CSV file', 'error'); return; }
+
+  document.getElementById('importDropZone').innerHTML = `<div style="font-size:24px;margin-bottom:8px">⏳</div><div style="font-weight:600">${esc(file.name)}</div><div style="font-size:12px;color:var(--muted);margin-top:4px">Parsing & validating…</div>`;
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const resp = await fetch('/api/import/parse', { method: 'POST', body: formData });
+    const result = await resp.json();
+    if (result.error) throw new Error(result.error);
+
+    importRows = result.rows;
+
+    // Summary badges
+    document.getElementById('importSummaryBadges').innerHTML = `
+      <span class="badge" style="background:#dcfce7;color:#15803d">✓ ${result.valid} valid</span>
+      ${result.errors > 0 ? `<span class="badge" style="background:#fee2e2;color:#991b1b">✕ ${result.errors} errors</span>` : ''}
+      <span class="badge" style="background:#dbeafe;color:#1d4ed8">${result.total} total rows</span>
+    `;
+
+    document.getElementById('importConfirmBtn').textContent = `Import ${result.valid} Valid Rows`;
+    document.getElementById('importConfirmBtn').disabled = result.valid === 0;
+
+    document.getElementById('importStep1').style.display = 'none';
+    document.getElementById('importStep2').style.display = '';
+    renderImportTable();
+
+  } catch(e) {
+    toast('Parse error: ' + e.message, 'error');
+    document.getElementById('importDropZone').innerHTML = `<div style="font-size:32px;margin-bottom:10px">📊</div><div style="font-size:15px;font-weight:600;color:var(--navy)">Click to browse or drag & drop</div><div style="font-size:12px;color:var(--muted);margin-top:6px">Supports .xlsx, .xls, .csv</div><input type="file" id="importFileInput" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleImportFile(this.files[0])"/>`;
+  }
+}
+
+function renderImportTable() {
+  const showErrors = document.getElementById('importShowErrors')?.checked;
+  const showOk = document.getElementById('importShowOk')?.checked;
+
+  const visible = importRows.filter(r =>
+    (showErrors && r.status === 'error') ||
+    (showOk && r.status !== 'error')
+  );
+
+  document.getElementById('importTableBody').innerHTML = visible.map(r => {
+    const d = r.data;
+    const statusHtml = r.status === 'error'
+      ? '<span class="badge badge-lost">Error</span>'
+      : r.status === 'warning'
+        ? '<span class="badge badge-awaited">Warning</span>'
+        : '<span class="badge badge-completed">Valid</span>';
+    const issues = [...r.errors, ...r.warnings].join('; ') || '—';
+    return `<tr style="${r.status === 'error' ? 'background:#fff8f8' : ''}">
+      <td style="color:var(--muted)">${r.row}</td>
+      <td>${statusHtml}</td>
+      <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(d.customer_name)}">${esc(d.customer_name || '—')}</td>
+      <td>${esc(d.branch_code || '—')}</td>
+      <td>${esc(d.bid_type || '—')}</td>
+      <td>${fmt(d.deadline) || '—'}</td>
+      <td>${workBadge(d.work_status)}</td>
+      <td>${resultBadge(d.tender_result_status)}</td>
+      <td>${d.potential_amount_usd ? '$' + Number(d.potential_amount_usd).toLocaleString() : '—'}</td>
+      <td style="font-size:11px;color:${r.status==='error'?'var(--danger)':'var(--muted)'};max-width:200px">${esc(issues)}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="10" style="text-align:center;padding:30px;color:var(--muted)">No rows to show</td></tr>';
+}
+
+async function confirmImport() {
+  const validRows = importRows.filter(r => r.status !== 'error');
+  if (!validRows.length) { toast('No valid rows to import', 'error'); return; }
+  if (!confirm(`Import ${validRows.length} valid rows into Firestore?\n\nError rows will be skipped.`)) return;
+
+  document.getElementById('importStep2').style.display = 'none';
+  document.getElementById('importStep3').style.display = '';
+
+  let done = 0, failed = 0;
+
+  for (const row of validRows) {
+    try {
+      const d = { ...row.data };
+
+      // Build contacts sub-array if contact fields present
+      if (d.contact_name || d.contact_email) {
+        d.contacts = [{ name: d.contact_name || '', mobile: d.contact_mobile || '', email: d.contact_email || '', location: d.contact_location || '' }];
+        delete d.contact_name; delete d.contact_mobile; delete d.contact_email; delete d.contact_location;
+      }
+
+      // Auto-calc days left
+      d.days_left = calcDaysLeftVal(d.deadline);
+
+      // Generate tender ID if not present
+      if (!d.tender_unique_id) {
+        const countSnap = await db.collection('meta').doc('counters').get();
+        const n = ((countSnap.exists ? countSnap.data().tender_seq : 0) || 0) + 1;
+        await db.collection('meta').doc('counters').set({ tender_seq: n }, { merge: true });
+        d.tender_unique_id = '#T_' + String(n).padStart(5, '0');
+      }
+
+      d.imported = true;
+      d.imported_at = new Date().toISOString();
+      d.imported_by = currentUser.displayName || currentUser.email;
+      d.created_by = currentUser.uid;
+      d.created_at = firebase.firestore.FieldValue.serverTimestamp();
+      d.documents = [];
+      d.status_history = [{ action: 'Imported', by: currentUser.displayName || currentUser.email, at: new Date().toISOString() }];
+
+      await db.collection('tenders').add(d);
+      done++;
+    } catch(e) {
+      console.error('Import row failed:', e);
+      failed++;
+    }
+
+    const pct = Math.round(((done + failed) / validRows.length) * 100);
+    document.getElementById('importProgressFill').style.width = pct + '%';
+    document.getElementById('importProgressText').textContent = `Imported ${done + failed} of ${validRows.length}…`;
+  }
+
+  document.getElementById('importResultBox').style.display = '';
+  document.getElementById('importResultBox').innerHTML = `
+    <div style="padding:16px;background:${failed===0?'#dcfce7':'#fef3c7'};border-radius:10px">
+      <div style="font-size:16px;font-weight:700;margin-bottom:6px">${failed===0?'✅ Import complete!':'⚠ Import finished with some failures'}</div>
+      <div style="font-size:13px">Successfully imported: <b>${done}</b> tenders${failed>0?` · Failed: <b>${failed}</b>`:''}.</div>
+      <div style="margin-top:12px;display:flex;gap:10px">
+        <button class="btn btn-primary btn-sm" onclick="loadTenders();renderList();renderDashboard();switchTab('list')">View Tenders</button>
+        <button class="btn btn-outline btn-sm" onclick="resetImport()">Import Another File</button>
+      </div>
+    </div>`;
+  document.getElementById('importProgressText').textContent = `Done — ${done} imported, ${failed} failed.`;
+
+  await loadTenders();
+}
+
+function resetImport() {
+  importRows = [];
+  document.getElementById('importStep1').style.display = '';
+  document.getElementById('importStep2').style.display = 'none';
+  document.getElementById('importStep3').style.display = 'none';
+  document.getElementById('importProgressFill').style.width = '0%';
+  document.getElementById('importResultBox').style.display = 'none';
+  document.getElementById('importDropZone').innerHTML = `<div style="font-size:32px;margin-bottom:10px">📊</div><div style="font-size:15px;font-weight:600;color:var(--navy)">Click to browse or drag & drop</div><div style="font-size:12px;color:var(--muted);margin-top:6px">Supports .xlsx, .xls, .csv — your existing bid sheet format</div><input type="file" id="importFileInput" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleImportFile(this.files[0])"/>`;
 }
 
 // ── Reports ───────────────────────────────────────────────────

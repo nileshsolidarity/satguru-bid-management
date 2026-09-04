@@ -83,6 +83,30 @@
     .signout-btn { background: rgba(255,255,255,0.1); border: none; color: white; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 12px; }
     .signout-btn:hover { background: rgba(255,255,255,0.2); }
 
+    /* Deadline alerts bell */
+    .bell-wrap { position: relative; }
+    .bell-btn { position: relative; background: rgba(255,255,255,0.1); border: none; color: white; width: 36px; height: 36px; border-radius: 8px; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; }
+    .bell-btn:hover { background: rgba(255,255,255,0.2); }
+    .bell-badge { position: absolute; top: -3px; right: -3px; background: var(--danger); color: white; font-size: 10px; font-weight: 700; border-radius: 10px; min-width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; padding: 0 4px; border: 2px solid var(--navy2); }
+    .alerts-panel { position: absolute; top: 46px; right: 0; width: 360px; max-height: 440px; overflow-y: auto; background: white; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.28); z-index: 300; color: var(--text); }
+    .alerts-head { padding: 14px 16px; font-size: 13px; font-weight: 700; border-bottom: 1px solid var(--border); color: var(--navy); }
+    .alerts-empty { padding: 32px 16px; text-align: center; font-size: 13px; color: var(--muted); }
+    .alert-row { display: flex; align-items: center; gap: 10px; padding: 12px 16px; cursor: pointer; border-bottom: 1px solid var(--border); }
+    .alert-row:last-child { border-bottom: none; }
+    .alert-row:hover { background: #f8fafc; }
+    .alert-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+    .alert-dot.tier-1 { background: var(--info); }
+    .alert-dot.tier-2, .alert-dot.tier-3 { background: var(--warning); }
+    .alert-dot.tier-4 { background: var(--danger); }
+    .alert-body { flex: 1; min-width: 0; }
+    .alert-title { font-size: 13px; font-weight: 700; }
+    .alert-sub { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .alert-days { font-size: 11px; font-weight: 700; color: var(--danger); flex-shrink: 0; }
+
+    .badge-alert-first, .badge-alert-daily { background: #dbeafe; color: #1d4ed8; }
+    .badge-alert-priority, .badge-alert-urgent { background: #fef9c3; color: #854d0e; }
+    .badge-alert-critical, .badge-alert-escalation { background: #fee2e2; color: #991b1b; }
+
     /* Tabs */
     .tabs-bar {
       background: var(--navy2); display: flex; gap: 2px; padding: 0 28px;
@@ -149,6 +173,13 @@
     .badge-awaited { background: #fef3c7; color: #92400e; }
     .badge-overdue { background: #fee2e2; color: #991b1b; }
     .badge-disqualified { background: #fce7f3; color: #9d174d; }
+    .badge-ledger-pending { background: #fee2e2; color: #991b1b; }
+    .badge-tsr-notgenerated { background: #f3f4f6; color: #374151; }
+    .badge-tsr-generated { background: #dbeafe; color: #1d4ed8; }
+    .badge-tsr-sent { background: #e0e7ff; color: #4338ca; }
+    .badge-tsr-returnpending { background: #fef9c3; color: #854d0e; }
+    .badge-tsr-escalated { background: #fee2e2; color: #991b1b; }
+    .badge-tsr-received { background: #dcfce7; color: #15803d; }
 
     /* Filter bar */
     .filter-bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
@@ -299,6 +330,12 @@
     <div class="header-right">
       <a href="index.html" class="home-btn">← Portal Tracker</a>
       <a href="bid-prep.html" class="home-btn">✨ Bid Prep</a>
+      <div class="bell-wrap">
+        <button class="bell-btn" id="bellBtn" onclick="toggleAlertsPanel(event)" title="Deadline Alerts">
+          🔔<span class="bell-badge" id="bellBadge" style="display:none">0</span>
+        </button>
+        <div class="alerts-panel" id="alertsPanel" style="display:none"></div>
+      </div>
       <div class="user-chip">
         <div class="user-avatar" id="userAvatar">?</div>
         <div>
@@ -318,6 +355,7 @@
     <button class="tab-btn" id="tab-btn-form" style="display:none" onclick="switchTab('form')">Edit Tender</button>
     <button class="tab-btn" onclick="switchTab('masters')">Masters</button>
     <button class="tab-btn" onclick="switchTab('reports')">Reports</button>
+    <button class="tab-btn" onclick="switchTab('tsr')">Monthly TSR</button>
     <button class="tab-btn" onclick="switchTab('import')">Import Excel</button>
   </div>
 
@@ -334,6 +372,9 @@
       <div class="stat-card orange"><div class="stat-label">Pending Submission</div><div class="stat-val" id="statPending">—</div><div class="stat-sub">Not yet submitted</div></div>
       <div class="stat-card green"><div class="stat-label">Submitted</div><div class="stat-val" id="statSubmitted">—</div><div class="stat-sub">Total submitted</div></div>
       <div class="stat-card blue"><div class="stat-label">Total Value (USD)</div><div class="stat-val" id="statValue">—</div><div class="stat-sub">Potential amount</div></div>
+      <div class="stat-card red"><div class="stat-label">Ledger Pending</div><div class="stat-val" id="statLedgerPending">—</div><div class="stat-sub">Won, not yet closed</div></div>
+      <div class="stat-card orange"><div class="stat-label">Validity Expiring</div><div class="stat-val" id="statValidityExpiring">—</div><div class="stat-sub">≤15 days, result awaited</div></div>
+      <div class="stat-card red"><div class="stat-label">TSR Pending</div><div class="stat-val" id="statTsrPending">—</div><div class="stat-sub">Not generated, from the 29th</div></div>
     </div>
 
     <!-- Branch-wise summary -->
@@ -348,20 +389,43 @@
 
     <!-- Overdue / Due soon table -->
     <div class="card" style="margin-bottom:20px">
-      <div class="card-header"><div class="card-title">⚠ Overdue / Due This Week</div></div>
+      <div class="card-header"><div class="card-title">⚠ Deadline Alerts — Overdue / Due This Week</div></div>
       <div class="table-wrap" style="border:none;border-radius:0">
-        <table><thead><tr><th>Tender ID</th><th>Client</th><th>Branch</th><th>Deadline</th><th>Days Left</th><th>Assigned To</th><th>Work Status</th></tr></thead>
-        <tbody id="dashOverdueBody"><tr><td colspan="7"><div class="loading"><span class="spinner"></span>Loading...</div></td></tr></tbody>
+        <table><thead><tr><th>Tender ID</th><th>Client</th><th>Branch</th><th>Deadline</th><th>Days Left</th><th>Alert</th><th>Assigned To</th><th>Work Status</th></tr></thead>
+        <tbody id="dashOverdueBody"><tr><td colspan="8"><div class="loading"><span class="spinner"></span>Loading...</div></td></tr></tbody>
         </table>
       </div>
     </div>
 
     <!-- Result awaiting -->
-    <div class="card">
+    <div class="card" style="margin-bottom:20px">
       <div class="card-header"><div class="card-title">⏳ Result Awaited — Follow Up Required</div></div>
       <div class="table-wrap" style="border:none;border-radius:0">
         <table><thead><tr><th>Tender ID</th><th>Client</th><th>Branch</th><th>Submitted</th><th>Expected Result</th><th>Marketing SPOC</th><th>Result Status</th></tr></thead>
         <tbody id="dashAwaitedBody"><tr><td colspan="7"><div class="loading"><span class="spinner"></span>Loading...</div></td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Bid validity expiring -->
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-header"><div class="card-title">📄 Bid Validity — Expiring Soon</div></div>
+      <div class="table-wrap" style="border:none;border-radius:0">
+        <table><thead><tr><th>Tender ID</th><th>Client</th><th>Branch</th><th>Submitted</th><th>Validity Expiry</th><th>Days Left</th><th>Marketing SPOC</th></tr></thead>
+        <tbody id="dashValidityBody"><tr><td colspan="7"><div class="loading"><span class="spinner"></span>Loading...</div></td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Monthly TSR status -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">📋 Monthly TSR — Branch Status</div>
+        <button class="btn btn-outline btn-sm" onclick="switchTab('tsr')">Open TSR Tab</button>
+      </div>
+      <div class="table-wrap" style="border:none;border-radius:0">
+        <table><thead><tr><th>Branch</th><th>Status</th><th>Sent</th><th>Return Due</th><th>Received</th></tr></thead>
+        <tbody id="dashTsrBody"><tr><td colspan="5"><div class="loading"><span class="spinner"></span>Loading...</div></td></tr></tbody>
         </table>
       </div>
     </div>
@@ -382,7 +446,7 @@
       </select>
       <select id="filterResultStatus" onchange="renderList()">
         <option value="">Result Status</option>
-        <option>Result Awaited</option><option>Won</option><option>Lost</option><option>Cancelled</option><option>Disqualified</option><option>Not Participated</option>
+        <option>Result Awaited</option><option>On Hold</option><option>Won</option><option>Lost</option><option>Cancelled</option><option>Disqualified</option><option>Not Participated</option>
       </select>
       <select id="filterBidType" onchange="renderList()"><option value="">Bid Type</option><option>RFP</option><option>RFQ</option><option>EOI</option><option>SR</option><option>Tender</option></select>
       <button class="btn btn-outline btn-sm" onclick="clearFilters()">Clear</button>
@@ -510,7 +574,7 @@
             </div>
             <div class="form-group">
               <label>Branch Code <span class="req">*</span></label>
-              <select class="form-control" id="f_branch_code" onchange="loadMarketingPersons()">
+              <select class="form-control" id="f_branch_code" onchange="onBranchChange()">
                 <option value="">— Select Branch —</option>
               </select>
             </div>
@@ -520,6 +584,15 @@
                 <option value="">— Select —</option>
                 <option>STTS</option><option>STC</option><option>STL</option><option>Other</option>
               </select>
+            </div>
+            <div class="form-group">
+              <label>Legal Entity (Auto)</label>
+              <input class="form-control" id="f_legal_entity" readonly placeholder="Auto-fills from selected branch"/>
+              <span class="field-note" id="legalEntityNote"></span>
+            </div>
+            <div class="form-group">
+              <label>Region (Auto)</label>
+              <input class="form-control" id="f_region" readonly placeholder="Auto-fills from selected branch"/>
             </div>
           </div>
         </div>
@@ -584,7 +657,7 @@
             </div>
             <div class="form-group">
               <label>Date of Submission</label>
-              <input type="date" class="form-control" id="f_submission_date"/>
+              <input type="date" class="form-control" id="f_submission_date" onchange="calcBidValidityExpiry()"/>
             </div>
             <div class="form-group">
               <label>Submitted To</label>
@@ -615,6 +688,29 @@
             </div>
           </div>
 
+          <div class="form-section-title">Bid Validity</div>
+          <div class="form-grid" style="margin-bottom:24px">
+            <div class="form-group">
+              <label>Bid Validity Period (Days)</label>
+              <input type="number" class="form-control" id="f_bid_validity_days" min="1" placeholder="Leave blank to use default 90 days" oninput="calcBidValidityExpiry()"/>
+              <span class="field-note">Enter the exact period stated in the tender document, if any.</span>
+            </div>
+            <div class="form-group">
+              <label>Validity Expiry Date (Auto)</label>
+              <input class="form-control" id="f_bid_validity_expiry" readonly/>
+              <span class="field-note" id="bidValidityNote"></span>
+            </div>
+            <div class="form-group">
+              <label>Extended Expiry Date</label>
+              <input type="date" class="form-control" id="f_bid_validity_extended_date"/>
+              <span class="field-note">If validity was extended, the new date used for alerts and reports.</span>
+            </div>
+            <div class="form-group">
+              <label>Extension Reference</label>
+              <input class="form-control" id="f_bid_validity_extension_note" placeholder="Approval reference / email — attach proof in the Documents tab"/>
+            </div>
+          </div>
+
           <div class="form-section-title">Result Details</div>
           <div class="form-grid">
             <div class="form-group">
@@ -623,9 +719,9 @@
             </div>
             <div class="form-group">
               <label>Tender Result Status</label>
-              <select class="form-control" id="f_tender_result_status">
+              <select class="form-control" id="f_tender_result_status" onchange="onResultStatusChange()">
                 <option value="">— Select —</option>
-                <option>Result Awaited</option><option>Won</option><option>Lost</option>
+                <option>Result Awaited</option><option>On Hold</option><option>Won</option><option>Lost</option>
                 <option>Cancelled</option><option>Disqualified</option><option>Not Participated</option>
               </select>
             </div>
@@ -636,6 +732,76 @@
             <div class="form-group">
               <label>Lost Reason</label>
               <input class="form-control" id="f_lost_reason" placeholder="Reason for losing if applicable"/>
+            </div>
+          </div>
+
+          <!-- Result Awaited: follow-up -->
+          <div id="resultBlock-awaited" class="result-block" style="display:none">
+            <div class="form-section-title" style="margin-top:20px">Result Awaited — Follow-Up</div>
+            <div class="form-grid">
+              <div class="form-group full"><label>Latest Follow-Up</label><textarea class="form-control" id="f_latest_followup" rows="2" placeholder="Latest client response / follow-up note"></textarea></div>
+              <div class="form-group"><label>Next Follow-Up Date</label><input type="date" class="form-control" id="f_next_followup_date"/></div>
+            </div>
+          </div>
+
+          <!-- On Hold -->
+          <div id="resultBlock-hold" class="result-block" style="display:none">
+            <div class="form-section-title" style="margin-top:20px">On Hold — Details</div>
+            <div class="form-grid">
+              <div class="form-group"><label>Reason <span class="req">*</span></label><input class="form-control" id="f_hold_reason"/></div>
+              <div class="form-group"><label>Responsible Person <span class="req">*</span></label><input class="form-control" id="f_hold_responsible"/></div>
+              <div class="form-group"><label>Next Review Date <span class="req">*</span></label><input type="date" class="form-control" id="f_next_review_date"/></div>
+            </div>
+          </div>
+
+          <!-- Lost -->
+          <div id="resultBlock-lost" class="result-block" style="display:none">
+            <div class="form-section-title" style="margin-top:20px">Lost — Details</div>
+            <div class="form-grid">
+              <div class="form-group full"><label>Client Feedback</label><textarea class="form-control" id="f_client_feedback" rows="2"></textarea></div>
+              <div class="form-group"><label>Winning Bidder (if known)</label><input class="form-control" id="f_winning_bidder"/></div>
+            </div>
+          </div>
+
+          <!-- Cancelled -->
+          <div id="resultBlock-cancelled" class="result-block" style="display:none">
+            <div class="form-section-title" style="margin-top:20px">Cancelled — Details</div>
+            <div class="form-grid">
+              <div class="form-group"><label>Cancellation Reason <span class="req">*</span></label><input class="form-control" id="f_cancellation_reason"/></div>
+              <div class="form-group"><label>Evidence Note</label><input class="form-control" id="f_cancellation_evidence" placeholder="Reference to evidence uploaded in the Documents tab, if any"/></div>
+            </div>
+          </div>
+
+          <!-- Won: ledger control -->
+          <div id="resultBlock-won" class="result-block" style="display:none">
+            <div class="form-section-title" style="margin-top:20px">Won — Ledger Control</div>
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Client Type <span class="req">*</span></label>
+                <select class="form-control" id="f_client_type" onchange="onClientTypeChange()">
+                  <option value="">— Select —</option>
+                  <option>New Client</option><option>Existing Client</option>
+                </select>
+              </div>
+              <div class="form-group" id="fg_existing_ledger" style="display:none">
+                <label>Select Existing Ledger <span class="req">*</span></label>
+                <select class="form-control" id="f_existing_ledger_id" onchange="updateLedgerStatusPreview()"><option value="">— Select Ledger —</option></select>
+              </div>
+              <div class="form-group" id="fg_new_ledger_name" style="display:none">
+                <label>New Ledger Name <span class="req">*</span></label>
+                <input class="form-control" id="f_new_ledger_name" placeholder="Name for the new ledger to be created" oninput="updateLedgerStatusPreview()"/>
+              </div>
+              <div class="form-group">
+                <label>Ledger Status</label>
+                <input class="form-control" id="f_ledger_status" readonly/>
+                <span class="field-note">Won tenders stay "Ledger Pending" until Accounts/Finance confirm the ledger.</span>
+              </div>
+            </div>
+            <div id="ledgerExceptionBlock" style="display:none;margin-top:14px;padding:14px;background:#fff8e1;border-radius:8px;border:1px solid #f5deb3">
+              <label style="font-size:12px;font-weight:600;color:var(--warning);display:flex;align-items:center;gap:8px;cursor:pointer">
+                <input type="checkbox" id="f_ledger_exception" onchange="toggleLedgerExceptionReason()"/> Admin Exception — allow closing without a completed ledger
+              </label>
+              <textarea class="form-control" id="f_ledger_exception_reason" rows="2" placeholder="Written reason for the exception (mandatory, recorded in the audit trail)" style="margin-top:8px;display:none" oninput="updateLedgerStatusPreview()"></textarea>
             </div>
           </div>
         </div>
@@ -730,7 +896,7 @@
           <button class="btn btn-primary btn-sm" onclick="openMasterModal('branch')">+ Add</button>
         </div>
         <div class="card-body" style="padding:0">
-          <table><thead><tr><th>Code</th><th>City</th><th>Country</th><th>Active</th><th></th></tr></thead>
+          <table><thead><tr><th>Code</th><th>City</th><th>Country</th><th>Legal Entity</th><th>Region</th><th>Currency</th><th>Active</th><th></th></tr></thead>
           <tbody id="masterBranches"></tbody></table>
         </div>
       </div>
@@ -765,6 +931,28 @@
         <div class="card-body" style="padding:0">
           <table><thead><tr><th>Name</th><th>Global Name</th><th>Country</th><th>Active</th><th>Actions</th></tr></thead>
           <tbody id="masterClients"></tbody></table>
+        </div>
+      </div>
+      <!-- Ledgers -->
+      <div class="card" style="grid-column:1/-1">
+        <div class="card-header">
+          <div class="card-title">Approved Ledgers</div>
+          <button class="btn btn-primary btn-sm" onclick="openMasterModal('ledger')">+ Add Ledger</button>
+        </div>
+        <div class="card-body" style="padding:0">
+          <table><thead><tr><th>Ledger Name</th><th>Client</th><th>Branch</th><th>Active</th><th>Actions</th></tr></thead>
+          <tbody id="masterLedgers"></tbody></table>
+        </div>
+      </div>
+      <!-- Ledger Requests — Accounts/Finance queue -->
+      <div class="card" style="grid-column:1/-1">
+        <div class="card-header">
+          <div class="card-title">🧾 Ledger Requests — Accounts/Finance Queue</div>
+          <div style="font-size:12px;color:var(--muted)">Raised automatically when a Won tender names a new client's ledger</div>
+        </div>
+        <div class="card-body" style="padding:0">
+          <table><thead><tr><th>Tender ID</th><th>Client</th><th>Branch</th><th>Requested Ledger Name</th><th>Requested By</th><th>Status</th><th></th></tr></thead>
+          <tbody id="masterLedgerRequests"></tbody></table>
         </div>
       </div>
     </div>
@@ -881,7 +1069,7 @@
           <select id="rptBranch" class="form-control"><option value="">All Branches</option></select>
           <select id="rptResultStatus" class="form-control">
             <option value="">All Results</option>
-            <option>Result Awaited</option><option>Won</option><option>Lost</option><option>Cancelled</option><option>Disqualified</option><option>Not Participated</option>
+            <option>Result Awaited</option><option>On Hold</option><option>Won</option><option>Lost</option><option>Cancelled</option><option>Disqualified</option><option>Not Participated</option>
           </select>
           <select id="rptBidType" class="form-control">
             <option value="">All Bid Types</option>
@@ -898,6 +1086,45 @@
           <tr><td colspan="12" style="text-align:center;padding:40px;color:var(--muted)">Select a report type and click Generate Report</td></tr>
         </tbody>
       </table>
+    </div>
+  </div>
+
+  <!-- ── MONTHLY TSR ── -->
+  <div id="tab-tsr" class="tab-content">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px">
+      <div>
+        <h2 style="font-size:18px;font-weight:700">Monthly Tender Status Report</h2>
+        <p style="font-size:12px;color:var(--muted);margin-top:4px">Generate a branch-wise TSR each month, track when it's sent, and follow up until the branch returns it.</p>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <input type="month" id="tsrPeriod" class="form-control" onchange="renderTsrTab()"/>
+        <button class="btn btn-primary btn-sm" onclick="generateAllMissingTsr()">Generate All Missing</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Branch</th><th>Tenders</th><th>Status</th><th>Generated</th>
+          <th>Sent</th><th>Return Due</th><th>Received</th><th>Ver.</th><th>Actions</th>
+        </tr></thead>
+        <tbody id="tsrBody">
+          <tr><td colspan="9"><div class="loading"><span class="spinner"></span>Loading...</div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- TSR send/receive modal -->
+  <div id="tsrModal" style="display:none">
+    <div class="modal-overlay" onclick="closeTsrModal()">
+      <div class="modal" onclick="event.stopPropagation()">
+        <h3 id="tsrModalTitle">Record TSR</h3>
+        <div id="tsrModalBody"></div>
+        <div class="modal-actions">
+          <button class="btn btn-outline" onclick="closeTsrModal()">Cancel</button>
+          <button class="btn btn-primary" onclick="saveTsrModal()">Save</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -940,6 +1167,8 @@ let allTenders = [];
 let editingTenderId = null;
 let pendingDocuments = []; // docs queued for upload on new tender
 let masterModalType = null;
+let loadedLedgerStatus = ''; // ledger_status as stored on the tender being edited — guards against re-deriving it back to 'Pending'/'Request Sent' on an unrelated save
+let loadedClientType = '';
 
 // ── Quick-track pre-fill (from portal tracker) ───────────────
 function checkQuickPrefill() {
@@ -1068,8 +1297,12 @@ async function loadAllData() {
   await loadTenders();
   renderDashboard();
   renderList();
+  renderAlertsPanel();
+  maybeShowAlertPopup();
   await loadBranchesIntoSelects();
+  await loadLedgersIntoSelects();
   loadMasters();
+  refreshDashboardTsr();
   // If came from portal tracker, open new tender form pre-filled
   if (new URLSearchParams(location.search).has('quick') && window._prefillData) {
     openNewTender();
@@ -1096,6 +1329,148 @@ function calcDaysLeftVal(deadline) {
   return Math.ceil((d - today) / 86400000);
 }
 
+// ── Deadline & Bid Validity Alerts ──────────────────────────────
+// Escalation ladder per requirements: 5/4d assignee only, 3d +Team Lead,
+// 2/1d +Team Lead +Manager, deadline day/overdue +branch too.
+const ALERT_LADDER = {
+  5: { key:'first',      label:'First Reminder',  tier:1 },
+  4: { key:'daily',      label:'Daily Reminder',  tier:1 },
+  3: { key:'priority',   label:'Priority',        tier:2 },
+  2: { key:'urgent',     label:'Urgent',          tier:3 },
+  1: { key:'critical',   label:'Critical',        tier:3 },
+};
+function alertLevelFor(daysLeft) {
+  if (daysLeft === null || daysLeft === undefined) return null;
+  if (daysLeft <= 0) return { key:'escalation', label:'Escalation', tier:4 };
+  return ALERT_LADDER[daysLeft] || null;
+}
+function activeAlerts() {
+  return allTenders
+    .filter(t => t.deadline && t.submission_status !== 'Submitted' && t.work_status !== 'Cancelled')
+    .map(t => ({ t, level: alertLevelFor(t.days_left) }))
+    .filter(a => a.level);
+}
+
+// Bid validity ladder per requirements: 15/7d assignee+lead, 3d +Manager,
+// expiry (still Result Awaited) escalates to the branch as an urgent follow-up.
+const VALIDITY_LADDER = {
+  15: { key:'v15', label:'Validity: 15 Days', tier:1 },
+  7:  { key:'v7',  label:'Validity: 7 Days',  tier:2 },
+  3:  { key:'v3',  label:'Validity: 3 Days',  tier:3 },
+};
+function validityLevelFor(daysToExpiry) {
+  if (daysToExpiry === null || daysToExpiry === undefined) return null;
+  if (daysToExpiry <= 0) return { key:'vexpired', label:'Validity Expired — Follow Up', tier:4 };
+  return VALIDITY_LADDER[daysToExpiry] || null;
+}
+function tenderValidityExpiry(t) {
+  return t.bid_validity_extended_date || t.bid_validity_expiry || null;
+}
+function activeValidityAlerts() {
+  return allTenders
+    .filter(t => t.submission_status === 'Submitted' && ['Result Awaited', 'On Hold', ''].includes(t.tender_result_status || ''))
+    .map(t => {
+      const expiry = tenderValidityExpiry(t);
+      if (!expiry) return null;
+      const daysToExpiry = calcDaysLeftVal(expiry);
+      const level = validityLevelFor(daysToExpiry);
+      return level ? { t, level, daysToExpiry } : null;
+    })
+    .filter(Boolean);
+}
+
+function isAlertRecipient(t, level) {
+  if (!currentUserProfile) return false;
+  const me = (currentUser?.displayName || currentUser?.email || '').toLowerCase();
+  if (me && (t.assigned_to || '').toLowerCase() === me) return true;
+  const role = currentUserProfile.role;
+  // Team Lead / Manager get copied in from tier 2 onward, for all tenders
+  if (level.tier >= 2 && ['admin', 'bidmanager'].includes(role)) return true;
+  // The relevant branch (Marketing Manager) is escalated to at the final tier
+  if (level.tier >= 4 && ['branchrep', 'branchmanager'].includes(role) && t.branch_code === currentUserProfile.branch_code) return true;
+  return false;
+}
+function getMyAlerts() {
+  const items = [];
+  activeAlerts().forEach(a => {
+    if (!isAlertRecipient(a.t, a.level)) return;
+    items.push({ t: a.t, level: a.level, kind: 'deadline', daysNum: a.t.days_left,
+      subtitle: `${a.t.customer_name || ''} · ${a.t.branch_code || ''} · ${a.level.label}` });
+  });
+  activeValidityAlerts().forEach(a => {
+    if (!isAlertRecipient(a.t, a.level)) return;
+    items.push({ t: a.t, level: a.level, kind: 'validity', daysNum: a.daysToExpiry,
+      subtitle: `${a.t.customer_name || ''} · Bid Validity · ${a.level.label}` });
+  });
+  return items.sort((x, y) => x.daysNum - y.daysNum);
+}
+function alertDaysLabel(n) {
+  return n < 0 ? Math.abs(n) + 'd overdue' : n === 0 ? 'Today' : n + 'd';
+}
+function renderAlertsPanel() {
+  const badge = document.getElementById('bellBadge');
+  const panel = document.getElementById('alertsPanel');
+  if (!badge || !panel) return;
+  const mine = getMyAlerts();
+  badge.style.display = mine.length ? 'flex' : 'none';
+  badge.textContent = mine.length;
+  panel.innerHTML = mine.length
+    ? `<div class="alerts-head">Alerts (${mine.length})</div>` + mine.map(a => `
+        <div class="alert-row" onclick="closeAlertsPanel();openEditTender('${a.t.id}')">
+          <span class="alert-dot tier-${a.level.tier}"></span>
+          <div class="alert-body">
+            <div class="alert-title">${esc(a.t.tender_unique_id || a.t.customer_name)}</div>
+            <div class="alert-sub">${esc(a.subtitle)}</div>
+          </div>
+          <div class="alert-days">${alertDaysLabel(a.daysNum)}</div>
+        </div>`).join('')
+    : `<div class="alerts-empty">No alerts 🎉</div>`;
+}
+function toggleAlertsPanel(e) {
+  if (e) e.stopPropagation();
+  const panel = document.getElementById('alertsPanel');
+  if (!panel) return;
+  const show = panel.style.display === 'none';
+  if (show) renderAlertsPanel();
+  panel.style.display = show ? 'block' : 'none';
+}
+function closeAlertsPanel() {
+  const panel = document.getElementById('alertsPanel');
+  if (panel) panel.style.display = 'none';
+}
+document.addEventListener('click', e => {
+  const panel = document.getElementById('alertsPanel');
+  const bell = document.getElementById('bellBtn');
+  if (panel && panel.style.display !== 'none' && !panel.contains(e.target) && e.target !== bell) closeAlertsPanel();
+});
+
+function maybeShowAlertPopup() {
+  const urgent = getMyAlerts().filter(a => a.level.tier >= 3); // Urgent / Critical / Escalation tier, either kind
+  if (!urgent.length) return;
+  const seenKey = 'satguru_alerts_seen_' + (currentUser?.uid || '') + '_' + new Date().toISOString().slice(0, 10);
+  if (localStorage.getItem(seenKey)) return;
+  try { localStorage.setItem(seenKey, '1'); } catch (e) {}
+  showAlertPopup(urgent);
+}
+function showAlertPopup(items) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.onclick = () => overlay.remove();
+  overlay.innerHTML = `<div class="modal" onclick="event.stopPropagation()">
+    <h3>⏰ Deadline &amp; Bid Validity Alerts</h3>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:14px">${items.length} tender${items.length > 1 ? 's need' : ' needs'} your attention.</p>
+    <div style="display:flex;flex-direction:column;border:1px solid var(--border);border-radius:8px;max-height:320px;overflow-y:auto">
+      ${items.map(a => `<div class="alert-row" onclick="this.closest('.modal-overlay').remove();openEditTender('${a.t.id}')">
+        <span class="alert-dot tier-${a.level.tier}"></span>
+        <div class="alert-body"><div class="alert-title">${esc(a.t.tender_unique_id || a.t.customer_name)}</div><div class="alert-sub">${esc(a.subtitle)}</div></div>
+        <div class="alert-days">${alertDaysLabel(a.daysNum)}</div>
+      </div>`).join('')}
+    </div>
+    <div class="modal-actions"><button class="btn btn-primary" onclick="this.closest('.modal-overlay').remove()">Got it</button></div>
+  </div>`;
+  document.body.appendChild(overlay);
+}
+
 // ── Tabs ──────────────────────────────────────────────────────
 function switchTab(name) {
   document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
@@ -1108,6 +1483,11 @@ function switchTab(name) {
   if (name === 'list') renderList();
   if (name === 'masters') loadMasters();
   if (name === 'reports') populateReportBranchFilter();
+  if (name === 'tsr') {
+    const periodEl = document.getElementById('tsrPeriod');
+    if (periodEl && !periodEl.value) periodEl.value = new Date().toISOString().slice(0, 7);
+    renderTsrTab();
+  }
 }
 
 // ── Dashboard ─────────────────────────────────────────────────
@@ -1147,6 +1527,9 @@ function renderDashboard() {
   document.getElementById('statPending').textContent = pending;
   document.getElementById('statSubmitted').textContent = submitted;
   document.getElementById('statValue').textContent = totalVal > 0 ? '$' + (totalVal/1000).toFixed(0) + 'K' : '—';
+  const ledgerPending = allTenders.filter(t => t.tender_result_status === 'Won' && t.ledger_status && !['Completed', 'Exception Granted'].includes(t.ledger_status)).length;
+  document.getElementById('statLedgerPending').textContent = ledgerPending;
+  document.getElementById('statValidityExpiring').textContent = activeValidityAlerts().length;
 
   // Branch-wise
   const branchMap = {};
@@ -1180,10 +1563,11 @@ function renderDashboard() {
         <td>${esc(t.branch_code)}</td>
         <td>${fmt(t.deadline)}</td>
         <td>${daysPill(t.days_left)}</td>
+        <td>${alertBadge(alertLevelFor(t.days_left))}</td>
         <td>${esc(t.assigned_to)}</td>
         <td>${workBadge(t.work_status)}</td>
       </tr>`).join('')
-    : '<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">✅</div><h3>No overdue or urgent tenders</h3></div></td></tr>';
+    : '<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">✅</div><h3>No overdue or urgent tenders</h3></div></td></tr>';
 
   // Result awaited table
   const awaitedList = allTenders.filter(t => t.tender_result_status === 'Result Awaited').slice(0,10);
@@ -1198,6 +1582,20 @@ function renderDashboard() {
         <td>${resultBadge(t.tender_result_status)}</td>
       </tr>`).join('')
     : '<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">📭</div><h3>No tenders awaiting result</h3></div></td></tr>';
+
+  // Bid validity expiring
+  const validityList = activeValidityAlerts().sort((a, b) => a.daysToExpiry - b.daysToExpiry).slice(0, 10);
+  document.getElementById('dashValidityBody').innerHTML = validityList.length
+    ? validityList.map(a => `<tr class="row-link" onclick="openEditTender('${a.t.id}')">
+        <td><b>${a.t.tender_unique_id || '—'}</b></td>
+        <td>${esc(a.t.customer_name)}</td>
+        <td>${esc(a.t.branch_code)}</td>
+        <td>${fmt(a.t.submission_date)}</td>
+        <td>${fmt(tenderValidityExpiry(a.t))}</td>
+        <td>${daysPill(a.daysToExpiry)}</td>
+        <td>${esc(a.t.marketing_person_spoc_name || '')}</td>
+      </tr>`).join('')
+    : '<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">📄</div><h3>No validity expiring soon</h3></div></td></tr>';
 }
 
 // ── Tender List ───────────────────────────────────────────────
@@ -1240,7 +1638,7 @@ function renderList() {
       <td>${daysPill(t.days_left)}</td>
       <td>${workBadge(t.work_status)}</td>
       <td>${subBadge(t.submission_status)}</td>
-      <td>${resultBadge(t.tender_result_status)}</td>
+      <td>${resultBadge(t.tender_result_status, t.ledger_status)}</td>
       <td>${esc(t.assigned_to)}</td>
       <td><div class="tbl-actions" onclick="event.stopPropagation()">
         <button class="btn btn-outline btn-sm" onclick="openEditTender('${t.id}')">Edit</button>
@@ -1274,11 +1672,12 @@ function openNewTender() {
   document.getElementById('formTenderId').textContent = 'ID will be auto-generated on save';
   document.getElementById('f_date_created').value = new Date().toISOString().slice(0,10);
   document.getElementById('f_created_by_name').value = currentUser.displayName || currentUser.email;
+  calcBidValidityExpiry();
 
   // Pre-fill branch for branch rep
   if (currentUserProfile?.branch_code) {
     document.getElementById('f_branch_code').value = currentUserProfile.branch_code;
-    loadMarketingPersons();
+    onBranchChange();
   }
 
   document.getElementById('tab-btn-form').style.display = 'none';
@@ -1308,16 +1707,41 @@ async function openEditTender(id) {
     'completed_percentage','work_status','marketing_person_spoc_id',
     'submission_status','submission_date','submitted_to','submission_type','submission_address',
     'submission_route','submitted_by','expected_result_date','tender_result_status','won_date','lost_reason',
-    'potential_contract_period','potential_contract_period_months','potential_start_date','potential_end_date'
+    'potential_contract_period','potential_contract_period_months','potential_start_date','potential_end_date',
+    'latest_followup','next_followup_date','hold_reason','hold_responsible','next_review_date',
+    'client_feedback','winning_bidder','cancellation_reason','cancellation_evidence',
+    'ledger_status','ledger_exception_reason',
+    'bid_validity_days','bid_validity_extended_date','bid_validity_extension_note'
   ];
   fields.forEach(f => {
     const el = document.getElementById('f_' + f);
     if (el && t[f] !== undefined && t[f] !== null) el.value = t[f];
   });
 
-  // Marketing persons for branch
+  // Marketing persons + legal entity for branch
   await loadMarketingPersons();
+  fillLegalEntity(t.branch_code || '');
   if (t.marketing_person_spoc_id) document.getElementById('f_marketing_person_spoc_id').value = t.marketing_person_spoc_id;
+
+  // Bid validity expiry — recompute from submission date + validity days
+  calcBidValidityExpiry();
+
+  // Result-status conditional blocks + ledger control
+  loadedLedgerStatus = t.ledger_status || '';
+  loadedClientType = t.client_type || '';
+  onResultStatusChange();
+  document.getElementById('f_client_type').value = t.client_type || '';
+  onClientTypeChange();
+  if (t.client_type === 'Existing Client' && t.existing_ledger_id) {
+    document.getElementById('f_existing_ledger_id').value = t.existing_ledger_id;
+  } else if (t.client_type === 'New Client') {
+    document.getElementById('f_new_ledger_name').value = t.ledger_name || '';
+  }
+  if (t.ledger_exception_reason) {
+    document.getElementById('f_ledger_exception').checked = true;
+    toggleLedgerExceptionReason();
+  }
+  updateLedgerStatusPreview();
 
   // Days left recalc
   calcDaysLeft();
@@ -1340,16 +1764,27 @@ async function openEditTender(id) {
 
 function resetForm() {
   const inputs = document.querySelectorAll('#tab-form .form-control, #tab-form textarea, #tab-form select');
-  inputs.forEach(el => { if (!el.readOnly) el.value = ''; });
+  inputs.forEach(el => { el.value = ''; }); // readonly fields (legal entity, ledger status, etc.) are re-derived, not user-typed
   document.getElementById('contactsContainer').innerHTML = '';
   document.getElementById('docsContainer').innerHTML = '';
   document.getElementById('remarksHistory').innerHTML = '<div style="font-size:13px;font-weight:600;color:var(--muted);margin-bottom:10px">Remark History</div>';
   document.getElementById('historyContainer').innerHTML = '';
   document.getElementById('f_new_remark').value = '';
+  document.querySelectorAll('.result-block').forEach(b => b.style.display = 'none');
+  const exceptionCb = document.getElementById('f_ledger_exception');
+  if (exceptionCb) exceptionCb.checked = false;
+  const exceptionBlock = document.getElementById('ledgerExceptionBlock');
+  if (exceptionBlock) exceptionBlock.style.display = 'none';
+  const exceptionReasonEl = document.getElementById('f_ledger_exception_reason');
+  if (exceptionReasonEl) exceptionReasonEl.style.display = 'none';
+  loadedLedgerStatus = '';
+  loadedClientType = '';
 }
 
 // ── Save Tender ───────────────────────────────────────────────
 async function saveTender() {
+  calcBidValidityExpiry(); // ensure the auto-computed expiry is current before it's read below
+
   // Collect all form fields
   const getString = id => (document.getElementById('f_' + id)?.value || '').trim();
   const getNum   = id => parseFloat(document.getElementById('f_' + id)?.value) || 0;
@@ -1368,17 +1803,48 @@ async function saveTender() {
     if (!getString('submission_date')) { toast('Date of Submission is required when status is Submitted', 'error'); return; }
     if (!getString('submission_type')) { toast('Submission Type is required when status is Submitted', 'error'); return; }
     if (!getString('submission_route')) { toast('Submission Route is required when status is Submitted', 'error'); return; }
+    if (getString('branch_code') && !getString('legal_entity')) {
+      toast('No legal entity is mapped for this branch. Ask Admin to update the Branch-Entity Master before final submission.', 'error');
+      return;
+    }
   }
 
   // Result validation
-  if (getString('tender_result_status') === 'Won' && !getString('won_date')) {
+  const resultStatus = getString('tender_result_status');
+  if (resultStatus === 'Won' && !getString('won_date')) {
     toast('Won Date is required when Result Status is Won', 'error'); return;
   }
-  if (getString('tender_result_status') === 'Lost' && !getString('lost_reason')) {
+  if (resultStatus === 'Lost' && !getString('lost_reason')) {
     toast('Lost Reason is required when Result Status is Lost', 'error'); return;
+  }
+  if (resultStatus === 'On Hold' && (!getString('hold_reason') || !getString('hold_responsible') || !getString('next_review_date'))) {
+    toast('Reason, Responsible Person and Next Review Date are required when Result Status is On Hold', 'error'); return;
+  }
+  if (resultStatus === 'Cancelled' && !getString('cancellation_reason')) {
+    toast('Cancellation Reason is required when Result Status is Cancelled', 'error'); return;
+  }
+  if (resultStatus === 'Won') {
+    const clientType = getString('client_type');
+    if (!clientType) { toast('Client Type (New / Existing) is required for Won tenders', 'error'); return; }
+    if (clientType === 'Existing Client' && !getString('existing_ledger_id')) {
+      toast('Select the existing ledger for this client', 'error'); return;
+    }
+    if (clientType === 'New Client' && !getString('new_ledger_name')) {
+      toast('Enter a name for the new ledger to be created', 'error'); return;
+    }
+    if (document.getElementById('f_ledger_exception')?.checked && !getString('ledger_exception_reason')) {
+      toast('A written reason is required to grant a ledger exception', 'error'); return;
+    }
+  }
+  if (getString('bid_validity_extended_date') && !getString('bid_validity_extension_note')) {
+    toast('An extension reference (approval / supporting communication) is required when recording an extended validity date', 'error'); return;
   }
   if (getString('work_status') === 'Completed' && !getString('finished_date')) {
     toast('Finished Date is required when Work Status is Completed', 'error'); return;
+  }
+  if (getString('work_status') === 'Completed' && resultStatus === 'Won' && !['Completed', 'Exception Granted'].includes(getString('ledger_status'))) {
+    toast('Won tenders cannot be marked Completed until the ledger is completed (or an Admin exception is recorded).', 'error');
+    return;
   }
 
   // Duplicate check
@@ -1407,6 +1873,8 @@ async function saveTender() {
     potential_amount_usd: getNum('potential_amount_usd'),
     branch_code: getString('branch_code'),
     domain_name: getString('domain_name'),
+    legal_entity: getString('legal_entity'),
+    region: getString('region'),
     assigned_to: getString('assigned_to'),
     deadline: getString('deadline'),
     days_left: calcDaysLeftVal(getString('deadline')),
@@ -1427,6 +1895,28 @@ async function saveTender() {
     tender_result_status: getString('tender_result_status'),
     won_date: getString('won_date'),
     lost_reason: getString('lost_reason'),
+    latest_followup: getString('latest_followup'),
+    next_followup_date: getString('next_followup_date'),
+    hold_reason: getString('hold_reason'),
+    hold_responsible: getString('hold_responsible'),
+    next_review_date: getString('next_review_date'),
+    client_feedback: getString('client_feedback'),
+    winning_bidder: getString('winning_bidder'),
+    cancellation_reason: getString('cancellation_reason'),
+    cancellation_evidence: getString('cancellation_evidence'),
+    client_type: resultStatus === 'Won' ? getString('client_type') : '',
+    existing_ledger_id: resultStatus === 'Won' ? getString('existing_ledger_id') : '',
+    ledger_name: resultStatus === 'Won'
+      ? (getString('client_type') === 'Existing Client'
+          ? (ledgers.find(l => l.id === getString('existing_ledger_id'))?.name || '')
+          : getString('new_ledger_name'))
+      : '',
+    ledger_status: resultStatus === 'Won' ? getString('ledger_status') : '',
+    ledger_exception_reason: document.getElementById('f_ledger_exception')?.checked ? getString('ledger_exception_reason') : '',
+    bid_validity_days: getString('bid_validity_days') !== '' ? getNum('bid_validity_days') : null,
+    bid_validity_expiry: getString('bid_validity_expiry'),
+    bid_validity_extended_date: getString('bid_validity_extended_date'),
+    bid_validity_extension_note: getString('bid_validity_extension_note'),
     potential_contract_period: getString('potential_contract_period'),
     potential_contract_period_months: getNum('potential_contract_period_months'),
     potential_start_date: getString('potential_start_date'),
@@ -1459,6 +1949,8 @@ async function saveTender() {
     at: new Date().toISOString()
   };
 
+  const prevLedgerStatus = editingTenderId ? (allTenders.find(t => t.id === editingTenderId)?.ledger_status || '') : '';
+
   if (editingTenderId) {
     const prev = allTenders.find(t => t.id === editingTenderId);
     data.status_history = [historyEntry, ...(prev?.status_history || [])].slice(0, 50);
@@ -1488,6 +1980,24 @@ async function saveTender() {
       editingTenderId = ref.id;
       toast('Tender created: ' + data.tender_unique_id, 'success');
     } catch (e) { toast('Error creating: ' + e.message, 'error'); return; }
+  }
+
+  // Raise a ledger creation request for Accounts/Finance the first time a Won
+  // tender names a new client's ledger (not on every subsequent save).
+  if (data.ledger_status === 'Request Sent to Accounts' && !['Request Sent to Accounts', 'Completed'].includes(prevLedgerStatus)) {
+    try {
+      await db.collection('ledger_requests').add({
+        tender_id: editingTenderId,
+        tender_unique_id: data.tender_unique_id || allTenders.find(t => t.id === editingTenderId)?.tender_unique_id || '',
+        customer_name: data.customer_name,
+        branch_code: data.branch_code,
+        requested_ledger_name: data.ledger_name,
+        requested_by: currentUser.displayName || currentUser.email,
+        requested_at: new Date().toISOString(),
+        status: 'Open'
+      });
+      toast('Ledger creation request sent to Accounts/Finance', 'info');
+    } catch (e) { console.error('ledger_requests', e); }
   }
 
   // Upload pending documents
@@ -1646,6 +2156,29 @@ function calcContractEnd() {
   }
 }
 
+function addDaysToDateStr(dateStr, days) {
+  const d = new Date(dateStr);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+const DEFAULT_BID_VALIDITY_DAYS = 90;
+function calcBidValidityExpiry() {
+  const expiryEl = document.getElementById('f_bid_validity_expiry');
+  const note = document.getElementById('bidValidityNote');
+  if (!expiryEl) return;
+  const submissionDate = document.getElementById('f_submission_date')?.value;
+  if (!submissionDate) {
+    expiryEl.value = '';
+    if (note) note.textContent = 'Set automatically once the Date of Submission is entered.';
+    return;
+  }
+  const daysInput = document.getElementById('f_bid_validity_days')?.value;
+  const days = daysInput ? parseInt(daysInput, 10) : DEFAULT_BID_VALIDITY_DAYS;
+  expiryEl.value = addDaysToDateStr(submissionDate, days);
+  if (note) note.textContent = daysInput ? '' : `Using the default ${DEFAULT_BID_VALIDITY_DAYS} days — no validity period was specified.`;
+}
+
 // ── Delete tender ─────────────────────────────────────────────
 async function deleteTender(id) {
   if (!confirm('Delete this tender? This cannot be undone.')) return;
@@ -1660,6 +2193,12 @@ async function deleteTender(id) {
 // ── Branches & Marketing Persons ──────────────────────────────
 let branches = [];
 let marketingPersons = [];
+let ledgers = [];
+
+async function loadLedgersIntoSelects() {
+  const snap = await db.collection('ledgers').where('active', '==', true).get();
+  ledgers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
 
 async function loadBranchesIntoSelects() {
   const snap = await db.collection('branches').where('active','==',true).get();
@@ -1678,6 +2217,99 @@ async function loadBranchesIntoSelects() {
       el.appendChild(o);
     });
   });
+}
+
+function onBranchChange() {
+  fillLegalEntity(document.getElementById('f_branch_code')?.value || '');
+  loadMarketingPersons();
+}
+
+function fillLegalEntity(branchCode) {
+  const entityEl = document.getElementById('f_legal_entity');
+  const regionEl = document.getElementById('f_region');
+  const note = document.getElementById('legalEntityNote');
+  if (!entityEl || !regionEl) return;
+  if (!branchCode) { entityEl.value = ''; regionEl.value = ''; if (note) note.textContent = ''; return; }
+  const b = branches.find(x => x.id === branchCode);
+  if (b && b.legal_entity) {
+    entityEl.value = b.legal_entity;
+    regionEl.value = b.region || '';
+    if (note) { note.textContent = ''; note.style.color = ''; }
+  } else {
+    entityEl.value = '';
+    regionEl.value = b?.region || '';
+    if (note) { note.textContent = '⚠ No legal entity mapped for this branch — ask Admin to update the Branch-Entity Master before submission.'; note.style.color = 'var(--danger)'; }
+  }
+}
+
+// ── Post-Submission Result & Ledger Control ────────────────────
+const RESULT_BLOCK_MAP = { 'Result Awaited': 'awaited', 'On Hold': 'hold', 'Lost': 'lost', 'Cancelled': 'cancelled', 'Won': 'won' };
+
+function onResultStatusChange() {
+  const status = document.getElementById('f_tender_result_status').value;
+  document.querySelectorAll('.result-block').forEach(b => b.style.display = 'none');
+  const key = RESULT_BLOCK_MAP[status];
+  if (!key) return;
+  const block = document.getElementById('resultBlock-' + key);
+  if (block) block.style.display = '';
+  if (key === 'won') {
+    const exceptionBlock = document.getElementById('ledgerExceptionBlock');
+    if (exceptionBlock) exceptionBlock.style.display = currentUserProfile?.role === 'admin' ? '' : 'none';
+    populateLedgerSelect();
+    updateLedgerStatusPreview();
+  }
+}
+
+function populateLedgerSelect() {
+  const sel = document.getElementById('f_existing_ledger_id');
+  if (!sel) return;
+  const client = (document.getElementById('f_customer_name')?.value || '').trim().toLowerCase();
+  const matches = client ? ledgers.filter(l => (l.client_name || '').toLowerCase() === client) : [];
+  const list = matches.length ? matches : ledgers;
+  const current = sel.value;
+  sel.innerHTML = '<option value="">— Select Ledger —</option>' +
+    list.map(l => `<option value="${l.id}">${esc(l.name)}${l.client_name ? ' — ' + esc(l.client_name) : ''}</option>`).join('');
+  if (current) sel.value = current;
+}
+
+function onClientTypeChange() {
+  const type = document.getElementById('f_client_type').value;
+  document.getElementById('fg_existing_ledger').style.display = type === 'Existing Client' ? '' : 'none';
+  document.getElementById('fg_new_ledger_name').style.display = type === 'New Client' ? '' : 'none';
+  updateLedgerStatusPreview();
+}
+
+function toggleLedgerExceptionReason() {
+  const checked = document.getElementById('f_ledger_exception')?.checked;
+  const reasonEl = document.getElementById('f_ledger_exception_reason');
+  if (reasonEl) reasonEl.style.display = checked ? '' : 'none';
+  updateLedgerStatusPreview();
+}
+
+function updateLedgerStatusPreview() {
+  const el = document.getElementById('f_ledger_status');
+  if (!el) return;
+  const clientType = document.getElementById('f_client_type')?.value;
+
+  // Once Accounts/Finance has completed the ledger (via the Masters queue),
+  // keep it Completed while editing unrelated fields on the same client type —
+  // otherwise re-deriving from client_type/ledger-name alone would silently
+  // regress a completed ledger back to "Request Sent to Accounts" (or
+  // "Pending") on every subsequent save, re-blocking the tender's closure.
+  if (loadedLedgerStatus === 'Completed' && clientType === loadedClientType) {
+    el.value = 'Completed';
+    return;
+  }
+
+  const existingLedger = document.getElementById('f_existing_ledger_id')?.value;
+  const newLedgerName = document.getElementById('f_new_ledger_name')?.value.trim();
+  const exceptionChecked = document.getElementById('f_ledger_exception')?.checked;
+  const exceptionReason = document.getElementById('f_ledger_exception_reason')?.value.trim();
+
+  if (clientType === 'Existing Client' && existingLedger) el.value = 'Completed';
+  else if (clientType === 'New Client' && newLedgerName) el.value = 'Request Sent to Accounts';
+  else if (exceptionChecked && exceptionReason) el.value = 'Exception Granted';
+  else el.value = 'Ledger Pending';
 }
 
 async function loadMarketingPersons() {
@@ -1705,10 +2337,12 @@ async function loadMasters() {
     const b = d.data();
     return `<tr>
       <td><b>${d.id}</b></td><td>${b.city||''}</td><td>${b.country||''}</td>
+      <td>${b.legal_entity ? esc(b.legal_entity) : '<span style="color:var(--danger)">Not mapped</span>'}</td>
+      <td>${b.region||''}</td><td>${b.currency||''}</td>
       <td>${b.active ? '✅' : '❌'}</td>
       <td><button class="btn btn-outline btn-sm" onclick="toggleActive('branches','${d.id}',${b.active})">Toggle</button></td>
     </tr>`;
-  }).join('') || '<tr><td colspan="5" style="color:var(--muted);padding:20px">No branches yet</td></tr>';
+  }).join('') || '<tr><td colspan="8" style="color:var(--muted);padding:20px">No branches yet</td></tr>';
 
   // Marketing persons
   const mpSnap = await db.collection('marketing_persons').get();
@@ -1750,6 +2384,67 @@ async function loadMasters() {
     const c = d.data();
     return `<tr><td><b>${esc(c.name)}</b></td><td>${esc(c.global_name||'')}</td><td>${esc(c.country||'')}</td><td>${c.active!==false?'✅':'❌'}</td><td><button class="btn btn-outline btn-sm" onclick="toggleActive('clients','${d.id}',${c.active!==false})">Toggle</button></td></tr>`;
   }).join('') || '<tr><td colspan="5" style="color:var(--muted);padding:20px">No clients yet</td></tr>';
+
+  // Ledgers
+  const lgSnap = await db.collection('ledgers').get();
+  const ledgerEl = document.getElementById('masterLedgers');
+  if (ledgerEl) ledgerEl.innerHTML = lgSnap.docs.map(d => {
+    const l = d.data();
+    return `<tr><td><b>${esc(l.name)}</b></td><td>${esc(l.client_name||'')}</td><td>${esc(l.branch_code||'')}</td><td>${l.active!==false?'✅':'❌'}</td><td><button class="btn btn-outline btn-sm" onclick="toggleActive('ledgers','${d.id}',${l.active!==false})">Toggle</button></td></tr>`;
+  }).join('') || '<tr><td colspan="5" style="color:var(--muted);padding:20px">No ledgers yet</td></tr>';
+
+  // Ledger requests — Accounts/Finance queue
+  const reqSnap = await db.collection('ledger_requests').orderBy('requested_at', 'desc').limit(50).get();
+  const reqEl = document.getElementById('masterLedgerRequests');
+  if (reqEl) reqEl.innerHTML = reqSnap.docs.map(d => {
+    const r = d.data();
+    const isOpen = r.status !== 'Completed';
+    return `<tr>
+      <td>${esc(r.tender_unique_id||'')}</td><td>${esc(r.customer_name||'')}</td><td>${esc(r.branch_code||'')}</td>
+      <td>${esc(r.requested_ledger_name||'')}</td><td>${esc(r.requested_by||'')}</td>
+      <td>${isOpen ? '<span class="badge badge-awaited">Open</span>' : '<span class="badge badge-completed">Completed</span>'}</td>
+      <td>${isOpen ? `<button class="btn btn-primary btn-sm" onclick="markLedgerCreated('${d.id}')">Mark Created</button>` : '—'}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="7" style="color:var(--muted);padding:20px">No ledger requests</td></tr>';
+}
+
+async function markLedgerCreated(reqId) {
+  if (!canManageMasters() && currentUserProfile?.role !== 'bidmanager') { toast('Admin or Bid Manager access required', 'error'); return; }
+  try {
+    const reqSnap = await db.collection('ledger_requests').doc(reqId).get();
+    if (!reqSnap.exists) { toast('Ledger request no longer exists', 'error'); return; }
+    const req = reqSnap.data();
+    const finalName = prompt('Confirm the final ledger name as created by Accounts/Finance:', req.requested_ledger_name || '');
+    if (!finalName || !finalName.trim()) return;
+    const name = finalName.trim();
+
+    await db.collection('ledgers').add({ name, client_name: req.customer_name || '', branch_code: req.branch_code || '', active: true });
+    await db.collection('ledger_requests').doc(reqId).update({
+      status: 'Completed', completed_by: currentUser.displayName || currentUser.email, completed_at: new Date().toISOString(), final_ledger_name: name
+    });
+
+    if (req.tender_id) {
+      const tSnap = await db.collection('tenders').doc(req.tender_id).get();
+      if (tSnap.exists) {
+        const prevHistory = tSnap.data().status_history || [];
+        await db.collection('tenders').doc(req.tender_id).update({
+          ledger_name: name,
+          ledger_status: 'Completed',
+          status_history: [{ action: 'Ledger Completed by Accounts/Finance', by: currentUser.displayName || currentUser.email, at: new Date().toISOString() }, ...prevHistory].slice(0, 50)
+        });
+      } else {
+        toast('Ledger created, but its linked tender no longer exists — nothing to update there', 'info');
+      }
+    }
+    toast('Ledger created and linked to the tender', 'success');
+    loadMasters();
+    loadLedgersIntoSelects();
+    await loadTenders();
+    renderList();
+    renderDashboard();
+  } catch (e) {
+    toast('Error resolving ledger request: ' + e.message, 'error');
+  }
 }
 
 async function updateUserRole(uid, role) {
@@ -1772,12 +2467,14 @@ function openMasterModal(type) {
   if (!canManageMasters()) { toast('Admin access required', 'error'); return; }
   masterModalType = type;
   const modal = document.getElementById('masterModal');
-  const titles = { branch: 'Add Branch', marketing: 'Add Marketing Person', client: 'Add Client' };
+  const titles = { branch: 'Add Branch', marketing: 'Add Marketing Person', client: 'Add Client', ledger: 'Add Ledger' };
   document.getElementById('masterModalTitle').textContent = titles[type] || 'Add Record';
   if (type === 'branch') {
-    document.getElementById('masterModalBody').innerHTML = `<div class="form-grid"><div class="form-group"><label>Branch Code <span class="req">*</span></label><input class="form-control" id="mm_id" placeholder="e.g. DXB"/></div><div class="form-group"><label>City</label><input class="form-control" id="mm_city" placeholder="Dubai"/></div><div class="form-group"><label>Country</label><input class="form-control" id="mm_country" placeholder="UAE"/></div></div>`;
+    document.getElementById('masterModalBody').innerHTML = `<div class="form-grid"><div class="form-group"><label>Branch Code <span class="req">*</span></label><input class="form-control" id="mm_id" placeholder="e.g. DXB"/></div><div class="form-group"><label>City</label><input class="form-control" id="mm_city" placeholder="Dubai"/></div><div class="form-group"><label>Country</label><input class="form-control" id="mm_country" placeholder="UAE"/></div><div class="form-group"><label>Legal Entity <span class="req">*</span></label><input class="form-control" id="mm_legal_entity" placeholder="Approved registered entity name"/></div><div class="form-group"><label>Region</label><input class="form-control" id="mm_region" placeholder="e.g. East Africa"/></div><div class="form-group"><label>Currency</label><input class="form-control" id="mm_currency" placeholder="e.g. USD"/></div></div><p style="font-size:11px;color:var(--muted);margin-top:10px">Legal Entity auto-fills on the tender form once this branch is selected, and is locked for normal users.</p>`;
   } else if (type === 'client') {
     document.getElementById('masterModalBody').innerHTML = `<div class="form-grid"><div class="form-group"><label>Client Name <span class="req">*</span></label><input class="form-control" id="mm_name" placeholder="Client / Company name"/></div><div class="form-group"><label>Global Name</label><input class="form-control" id="mm_global" placeholder="Parent company (if any)"/></div><div class="form-group"><label>Country</label><input class="form-control" id="mm_country" placeholder="Country"/></div><div class="form-group"><label>Industry</label><input class="form-control" id="mm_industry" placeholder="e.g. Government, NGO, Corporate"/></div></div>`;
+  } else if (type === 'ledger') {
+    document.getElementById('masterModalBody').innerHTML = `<div class="form-grid"><div class="form-group"><label>Ledger Name <span class="req">*</span></label><input class="form-control" id="mm_name" placeholder="Approved ledger name"/></div><div class="form-group"><label>Client Name</label><input class="form-control" id="mm_client" placeholder="Must match Customer / Client Name used on tenders"/></div><div class="form-group"><label>Branch Code</label><select class="form-control" id="mm_branch"><option value="">— Any —</option>${branches.map(b => `<option value="${b.id}">${b.id}</option>`).join('')}</select></div></div>`;
   } else {
     document.getElementById('masterModalBody').innerHTML = `<div class="form-grid"><div class="form-group"><label>Name <span class="req">*</span></label><input class="form-control" id="mm_name" placeholder="Full name"/></div><div class="form-group"><label>Email</label><input class="form-control" id="mm_email" placeholder="email@..."/></div><div class="form-group"><label>Branch Code <span class="req">*</span></label><select class="form-control" id="mm_branch">${branches.map(b => `<option value="${b.id}">${b.id}</option>`).join('')}</select></div></div>`;
   }
@@ -1790,11 +2487,12 @@ async function saveMasterRecord() {
   if (masterModalType === 'branch') {
     const id = document.getElementById('mm_id')?.value.trim().toUpperCase();
     if (!id) { toast('Branch code required', 'error'); return; }
-    await db.collection('branches').doc(id).set({
-      city: document.getElementById('mm_city')?.value.trim() || '',
-      country: document.getElementById('mm_country')?.value.trim() || '',
-      active: true
+    const branchData = { active: true };
+    [['mm_city','city'],['mm_country','country'],['mm_legal_entity','legal_entity'],['mm_region','region'],['mm_currency','currency']].forEach(([elId, field]) => {
+      const v = document.getElementById(elId)?.value.trim();
+      if (v) branchData[field] = v; // blank fields leave any existing value untouched
     });
+    await db.collection('branches').doc(id).set(branchData, { merge: true });
     toast('Branch added: ' + id, 'success');
   } else if (masterModalType === 'client') {
     const name = document.getElementById('mm_name')?.value.trim();
@@ -1807,6 +2505,16 @@ async function saveMasterRecord() {
       active: true
     });
     toast('Client added: ' + name, 'success');
+  } else if (masterModalType === 'ledger') {
+    const name = document.getElementById('mm_name')?.value.trim();
+    if (!name) { toast('Ledger name required', 'error'); return; }
+    await db.collection('ledgers').add({
+      name,
+      client_name: document.getElementById('mm_client')?.value.trim() || '',
+      branch_code: document.getElementById('mm_branch')?.value || '',
+      active: true
+    });
+    toast('Ledger added: ' + name, 'success');
   } else {
     const name = document.getElementById('mm_name')?.value.trim();
     if (!name) { toast('Name required', 'error'); return; }
@@ -1821,16 +2529,17 @@ async function saveMasterRecord() {
   closeMasterModal();
   loadMasters();
   loadBranchesIntoSelects();
+  loadLedgersIntoSelects();
 }
 
 // ── Export ────────────────────────────────────────────────────
 function exportExcel() {
-  const headers = ['Tender ID','Date Created','Client','Branch','Bid Type','Deadline','Days Left','Work Status','Submission Status','Result Status','Assigned To','Potential Amount USD','Description'];
+  const headers = ['Tender ID','Date Created','Client','Branch','Legal Entity','Bid Type','Deadline','Days Left','Work Status','Submission Status','Result Status','Ledger Status','Bid Validity Expiry','Assigned To','Potential Amount USD','Description'];
   const rows = allTenders.map(t => [
-    t.tender_unique_id||'', t.date_created||'', t.customer_name||'', t.branch_code||'',
+    t.tender_unique_id||'', t.date_created||'', t.customer_name||'', t.branch_code||'', t.legal_entity||'',
     t.bid_type||'', t.deadline||'', t.days_left||'', t.work_status||'',
-    t.submission_status||'', t.tender_result_status||'', t.assigned_to||'',
-    t.potential_amount_usd||'', (t.bid_description||'').slice(0,100)
+    t.submission_status||'', t.tender_result_status||'', t.ledger_status||'', tenderValidityExpiry(t)||'',
+    t.assigned_to||'', t.potential_amount_usd||'', (t.bid_description||'').slice(0,100)
   ]);
   const csv = [headers, ...rows].map(r => r.map(c => '"' + String(c).replace(/"/g,'""') + '"').join(',')).join('\n');
   const a = document.createElement('a');
@@ -2070,7 +2779,7 @@ function runReport() {
     <td>${daysPill(t.days_left)}</td>
     <td>${workBadge(t.work_status)}</td>
     <td>${subBadge(t.submission_status)}</td>
-    <td>${resultBadge(t.tender_result_status)}</td>
+    <td>${resultBadge(t.tender_result_status, t.ledger_status)}</td>
     <td>${esc(t.assigned_to)}</td>
     <td>${t.potential_amount_usd ? '$'+parseFloat(t.potential_amount_usd).toLocaleString() : '—'}</td>
   </tr>`).join('') : '<tr><td colspan="12" style="padding:40px;text-align:center;color:var(--muted)">No records found</td></tr>';
@@ -2101,6 +2810,231 @@ function exportReport() {
   toast('Report exported', 'success');
 }
 
+// ── Monthly TSR ───────────────────────────────────────────────
+// Grace period (days) allowed after Return Due Date before a pending TSR
+// escalates from the branch to the Regional Manager (§9).
+const TSR_ESCALATE_GRACE_DAYS = 3;
+let tsrReports = [];
+
+// True from the 2nd-to-last day of the month through month-end — the
+// generation window the requirement anchors to "the 29th", generalized so a
+// 28-day February still gets its window instead of never reaching day 29.
+function isTsrGenerationWindow() {
+  const now = new Date();
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  return now.getDate() >= daysInMonth - 1;
+}
+
+function tsrStatus(r) {
+  if (!r) return 'Not Generated';
+  if (r.received_date) return 'Received';
+  if (!r.sent_date) return 'Generated';
+  if (!r.return_due_date) return 'Sent';
+  const today = new Date().toISOString().slice(0, 10);
+  if (today <= r.return_due_date) return 'Sent';
+  const escalateAfter = addDaysToDateStr(r.return_due_date, TSR_ESCALATE_GRACE_DAYS);
+  return today > escalateAfter ? 'Escalated' : 'Return Pending';
+}
+
+function tsrBadge(status) {
+  const map = {
+    'Not Generated': 'badge-tsr-notgenerated',
+    'Generated': 'badge-tsr-generated',
+    'Sent': 'badge-tsr-sent',
+    'Return Pending': 'badge-tsr-returnpending',
+    'Escalated': 'badge-tsr-escalated',
+    'Received': 'badge-tsr-received',
+  };
+  return `<span class="badge ${map[status] || 'badge-new'}">${status}</span>`;
+}
+
+// reportsList lets the dashboard compute rows for the current month without
+// disturbing tsrReports, which tracks whatever period the TSR tab has open.
+function computeTsrRows(period, reportsList) {
+  const list = reportsList || tsrReports;
+  return branches.map(b => {
+    const record = list.find(r => r.id === (b.id + '_' + period));
+    const tenderCount = allTenders.filter(t => t.branch_code === b.id).length;
+    return { branch: b, record, status: tsrStatus(record), tenderCount };
+  });
+}
+
+async function loadTsrReports(period) {
+  const snap = await db.collection('tsr_reports').where('period', '==', period).get();
+  tsrReports = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+function canManageTsr() {
+  return canManageMasters() || currentUserProfile?.role === 'bidmanager';
+}
+
+function tsrActionButtons(branchCode, period, status) {
+  if (!canManageTsr()) return '—';
+  if (status === 'Not Generated') return `<button class="btn btn-outline btn-sm" onclick="generateTsr('${branchCode}','${period}')">Generate</button>`;
+  if (status === 'Generated') return `<button class="btn btn-primary btn-sm" onclick="openTsrModal('send','${branchCode}','${period}')">Mark Sent</button> <button class="btn btn-outline btn-sm" onclick="generateTsr('${branchCode}','${period}')">Regenerate</button>`;
+  if (['Sent', 'Return Pending', 'Escalated'].includes(status)) return `<button class="btn btn-success btn-sm" onclick="openTsrModal('receive','${branchCode}','${period}')">Mark Received</button>`;
+  if (status === 'Received') return `<button class="btn btn-outline btn-sm" onclick="openTsrModal('receive','${branchCode}','${period}')">Update / Re-received</button>`;
+  return '—';
+}
+
+async function renderTsrTab() {
+  const period = document.getElementById('tsrPeriod')?.value || new Date().toISOString().slice(0, 7);
+  await loadTsrReports(period);
+  const rows = computeTsrRows(period);
+  document.getElementById('tsrBody').innerHTML = rows.length ? rows.map(row => {
+    const r = row.record;
+    const versionCount = r?.version_history?.length || 0;
+    return `<tr>
+      <td><b>${esc(row.branch.id)}</b>${row.branch.city ? ' — ' + esc(row.branch.city) : ''}</td>
+      <td>${row.tenderCount}</td>
+      <td>${tsrBadge(row.status)}</td>
+      <td>${r?.generated_at ? fmt(r.generated_at.slice(0, 10)) : '—'}</td>
+      <td>${fmt(r?.sent_date)}</td>
+      <td>${fmt(r?.return_due_date)}</td>
+      <td>${fmt(r?.received_date)}</td>
+      <td>${versionCount || '—'}</td>
+      <td><div class="tbl-actions">${tsrActionButtons(row.branch.id, period, row.status)}</div></td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="9" style="padding:20px;color:var(--muted);text-align:center">No active branches configured — add one under Masters</td></tr>';
+}
+
+async function writeTsrSnapshot(branchCode, period) {
+  const snapshot = allTenders.filter(t => t.branch_code === branchCode).map(t => ({
+    tender_unique_id: t.tender_unique_id || '',
+    customer_name: t.customer_name || '',
+    work_status: t.work_status || '',
+    submission_status: t.submission_status || '',
+    tender_result_status: t.tender_result_status || '',
+    deadline: t.deadline || ''
+  }));
+  await db.collection('tsr_reports').doc(branchCode + '_' + period).set({
+    branch_code: branchCode,
+    period,
+    tender_count: snapshot.length,
+    tender_snapshot: snapshot,
+    generated_at: new Date().toISOString(),
+    generated_by: currentUser.displayName || currentUser.email
+  }, { merge: true });
+}
+
+async function generateTsr(branchCode, period) {
+  if (!canManageTsr()) { toast('Admin or Bid Manager access required', 'error'); return; }
+  try {
+    await writeTsrSnapshot(branchCode, period);
+    toast('TSR generated for ' + branchCode, 'success');
+    renderTsrTab();
+    refreshDashboardTsr();
+  } catch (e) {
+    toast('Error generating TSR: ' + e.message, 'error');
+  }
+}
+
+async function generateAllMissingTsr() {
+  if (!canManageTsr()) { toast('Admin or Bid Manager access required', 'error'); return; }
+  const period = document.getElementById('tsrPeriod')?.value || new Date().toISOString().slice(0, 7);
+  await loadTsrReports(period);
+  const missing = computeTsrRows(period).filter(row => row.status === 'Not Generated');
+  if (!missing.length) { toast('Every branch already has a TSR generated for this period', 'info'); return; }
+  try {
+    await Promise.all(missing.map(row => writeTsrSnapshot(row.branch.id, period)));
+    toast(`Generated TSR for ${missing.length} branch${missing.length > 1 ? 'es' : ''}`, 'success');
+  } catch (e) {
+    toast('Error generating TSR: ' + e.message, 'error');
+  }
+  renderTsrTab();
+  refreshDashboardTsr();
+}
+
+let tsrModalType = null;
+let tsrModalContext = null;
+
+function openTsrModal(type, branchCode, period) {
+  if (!canManageTsr()) { toast('Admin or Bid Manager access required', 'error'); return; }
+  tsrModalType = type;
+  tsrModalContext = { branchCode, period };
+  const today = new Date().toISOString().slice(0, 10);
+  if (type === 'send') {
+    document.getElementById('tsrModalTitle').textContent = 'Mark TSR Sent — ' + branchCode;
+    document.getElementById('tsrModalBody').innerHTML = `<div class="form-grid">
+      <div class="form-group"><label>Sent Date <span class="req">*</span></label><input type="date" class="form-control" id="tm_sent_date" value="${today}"/></div>
+      <div class="form-group"><label>Sent To <span class="req">*</span></label><input class="form-control" id="tm_sent_to" placeholder="Branch Marketing Manager name / email"/></div>
+      <div class="form-group full"><label>Return Due Date <span class="req">*</span></label><input type="date" class="form-control" id="tm_return_due" value="${addDaysToDateStr(today, 7)}"/></div>
+    </div>`;
+  } else {
+    document.getElementById('tsrModalTitle').textContent = 'Mark TSR Received — ' + branchCode;
+    document.getElementById('tsrModalBody').innerHTML = `<div class="form-grid">
+      <div class="form-group"><label>Received Date <span class="req">*</span></label><input type="date" class="form-control" id="tm_received_date" value="${today}"/></div>
+      <div class="form-group full"><label>Notes</label><input class="form-control" id="tm_received_note" placeholder="Version / changes noted on the returned report"/></div>
+    </div>`;
+  }
+  document.getElementById('tsrModal').style.display = 'flex';
+}
+function closeTsrModal() { document.getElementById('tsrModal').style.display = 'none'; }
+
+async function saveTsrModal() {
+  if (!canManageTsr()) { toast('Admin or Bid Manager access required', 'error'); return; }
+  const { branchCode, period } = tsrModalContext;
+  const docId = branchCode + '_' + period;
+  try {
+    if (tsrModalType === 'send') {
+      const sentDate = document.getElementById('tm_sent_date')?.value;
+      const sentTo = document.getElementById('tm_sent_to')?.value.trim();
+      const returnDue = document.getElementById('tm_return_due')?.value;
+      if (!sentDate || !sentTo || !returnDue) { toast('Sent Date, Sent To and Return Due Date are all required', 'error'); return; }
+      await db.collection('tsr_reports').doc(docId).set({
+        sent_date: sentDate, sent_to: sentTo, return_due_date: returnDue,
+        sent_by: currentUser.displayName || currentUser.email
+      }, { merge: true });
+      toast('TSR marked sent to ' + sentTo, 'success');
+    } else {
+      const receivedDate = document.getElementById('tm_received_date')?.value;
+      const note = document.getElementById('tm_received_note')?.value.trim();
+      if (!receivedDate) { toast('Received Date is required', 'error'); return; }
+      const existing = tsrReports.find(r => r.id === docId);
+      const versionHistory = [...(existing?.version_history || []), {
+        received_date: receivedDate, note, by: currentUser.displayName || currentUser.email, at: new Date().toISOString()
+      }];
+      await db.collection('tsr_reports').doc(docId).set({
+        received_date: receivedDate, received_by: currentUser.displayName || currentUser.email,
+        version_history: versionHistory
+      }, { merge: true });
+      toast('TSR marked received', 'success');
+    }
+    closeTsrModal();
+    renderTsrTab();
+    refreshDashboardTsr();
+  } catch (e) {
+    toast('Error saving: ' + e.message, 'error');
+  }
+}
+
+// Independent of tsrReports/tsrPeriod (the TSR tab's own state) so browsing
+// an older period there never leaves the dashboard showing the wrong month.
+async function refreshDashboardTsr() {
+  const period = new Date().toISOString().slice(0, 7);
+  let reportsList = [];
+  try {
+    const snap = await db.collection('tsr_reports').where('period', '==', period).get();
+    reportsList = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (e) { console.error('refreshDashboardTsr', e); }
+
+  const rows = computeTsrRows(period, reportsList);
+  const pendingEl = document.getElementById('statTsrPending');
+  if (pendingEl) pendingEl.textContent = isTsrGenerationWindow() ? rows.filter(r => r.status === 'Not Generated').length : 0;
+
+  const tbody = document.getElementById('dashTsrBody');
+  if (tbody) {
+    tbody.innerHTML = rows.length ? rows.map(row => `<tr class="row-link" onclick="switchTab('tsr')">
+        <td><b>${esc(row.branch.id)}</b></td>
+        <td>${tsrBadge(row.status)}</td>
+        <td>${fmt(row.record?.sent_date)}</td>
+        <td>${fmt(row.record?.return_due_date)}</td>
+        <td>${fmt(row.record?.received_date)}</td>
+      </tr>`).join('')
+      : '<tr><td colspan="5" style="padding:20px;color:var(--muted);text-align:center">No active branches configured</td></tr>';
+  }
+}
+
 // ── Helpers ───────────────────────────────────────────────────
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function fmt(d) {
@@ -2126,9 +3060,16 @@ function subBadge(s) {
   const map = { 'Pending':'badge-new','Submitted':'badge-submitted','Not Submitted':'badge-cancelled','Delayed':'badge-awaited','Extended':'badge-inprogress' };
   return `<span class="badge ${map[s]||'badge-new'}">${s||'—'}</span>`;
 }
-function resultBadge(s) {
-  const map = { 'Result Awaited':'badge-awaited','Won':'badge-won','Lost':'badge-lost','Cancelled':'badge-cancelled','Disqualified':'badge-disqualified','Not Participated':'badge-cancelled' };
+function resultBadge(s, ledgerStatus) {
+  const map = { 'Result Awaited':'badge-awaited','On Hold':'badge-awaited','Won':'badge-won','Lost':'badge-lost','Cancelled':'badge-cancelled','Disqualified':'badge-disqualified','Not Participated':'badge-cancelled' };
+  if (s === 'Won' && ledgerStatus && !['Completed', 'Exception Granted'].includes(ledgerStatus)) {
+    return `<span class="badge badge-ledger-pending">Won — Ledger Pending</span>`;
+  }
   return `<span class="badge ${map[s]||'badge-new'}">${s||'—'}</span>`;
+}
+function alertBadge(level) {
+  if (!level) return '<span style="color:var(--muted)">—</span>';
+  return `<span class="badge badge-alert-${level.key}">${level.label}</span>`;
 }
 
 function toast(msg, type = 'info') {

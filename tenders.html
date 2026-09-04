@@ -95,9 +95,9 @@
     .alert-row:last-child { border-bottom: none; }
     .alert-row:hover { background: #f8fafc; }
     .alert-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
-    .alert-dot.level-first, .alert-dot.level-daily { background: var(--info); }
-    .alert-dot.level-priority, .alert-dot.level-urgent { background: var(--warning); }
-    .alert-dot.level-critical, .alert-dot.level-escalation { background: var(--danger); }
+    .alert-dot.tier-1 { background: var(--info); }
+    .alert-dot.tier-2, .alert-dot.tier-3 { background: var(--warning); }
+    .alert-dot.tier-4 { background: var(--danger); }
     .alert-body { flex: 1; min-width: 0; }
     .alert-title { font-size: 13px; font-weight: 700; }
     .alert-sub { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -366,6 +366,7 @@
       <div class="stat-card green"><div class="stat-label">Submitted</div><div class="stat-val" id="statSubmitted">—</div><div class="stat-sub">Total submitted</div></div>
       <div class="stat-card blue"><div class="stat-label">Total Value (USD)</div><div class="stat-val" id="statValue">—</div><div class="stat-sub">Potential amount</div></div>
       <div class="stat-card red"><div class="stat-label">Ledger Pending</div><div class="stat-val" id="statLedgerPending">—</div><div class="stat-sub">Won, not yet closed</div></div>
+      <div class="stat-card orange"><div class="stat-label">Validity Expiring</div><div class="stat-val" id="statValidityExpiring">—</div><div class="stat-sub">≤15 days, result awaited</div></div>
     </div>
 
     <!-- Branch-wise summary -->
@@ -389,11 +390,21 @@
     </div>
 
     <!-- Result awaiting -->
-    <div class="card">
+    <div class="card" style="margin-bottom:20px">
       <div class="card-header"><div class="card-title">⏳ Result Awaited — Follow Up Required</div></div>
       <div class="table-wrap" style="border:none;border-radius:0">
         <table><thead><tr><th>Tender ID</th><th>Client</th><th>Branch</th><th>Submitted</th><th>Expected Result</th><th>Marketing SPOC</th><th>Result Status</th></tr></thead>
         <tbody id="dashAwaitedBody"><tr><td colspan="7"><div class="loading"><span class="spinner"></span>Loading...</div></td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Bid validity expiring -->
+    <div class="card">
+      <div class="card-header"><div class="card-title">📄 Bid Validity — Expiring Soon</div></div>
+      <div class="table-wrap" style="border:none;border-radius:0">
+        <table><thead><tr><th>Tender ID</th><th>Client</th><th>Branch</th><th>Submitted</th><th>Validity Expiry</th><th>Days Left</th><th>Marketing SPOC</th></tr></thead>
+        <tbody id="dashValidityBody"><tr><td colspan="7"><div class="loading"><span class="spinner"></span>Loading...</div></td></tr></tbody>
         </table>
       </div>
     </div>
@@ -625,7 +636,7 @@
             </div>
             <div class="form-group">
               <label>Date of Submission</label>
-              <input type="date" class="form-control" id="f_submission_date"/>
+              <input type="date" class="form-control" id="f_submission_date" onchange="calcBidValidityExpiry()"/>
             </div>
             <div class="form-group">
               <label>Submitted To</label>
@@ -653,6 +664,29 @@
             <div class="form-group">
               <label>Submitted By</label>
               <input class="form-control" id="f_submitted_by" placeholder="Name / user who submitted"/>
+            </div>
+          </div>
+
+          <div class="form-section-title">Bid Validity</div>
+          <div class="form-grid" style="margin-bottom:24px">
+            <div class="form-group">
+              <label>Bid Validity Period (Days)</label>
+              <input type="number" class="form-control" id="f_bid_validity_days" min="1" placeholder="Leave blank to use default 90 days" oninput="calcBidValidityExpiry()"/>
+              <span class="field-note">Enter the exact period stated in the tender document, if any.</span>
+            </div>
+            <div class="form-group">
+              <label>Validity Expiry Date (Auto)</label>
+              <input class="form-control" id="f_bid_validity_expiry" readonly/>
+              <span class="field-note" id="bidValidityNote"></span>
+            </div>
+            <div class="form-group">
+              <label>Extended Expiry Date</label>
+              <input type="date" class="form-control" id="f_bid_validity_extended_date"/>
+              <span class="field-note">If validity was extended, the new date used for alerts and reports.</span>
+            </div>
+            <div class="form-group">
+              <label>Extension Reference</label>
+              <input class="form-control" id="f_bid_validity_extension_note" placeholder="Approval reference / email — attach proof in the Documents tab"/>
             </div>
           </div>
 
@@ -1232,7 +1266,7 @@ function calcDaysLeftVal(deadline) {
   return Math.ceil((d - today) / 86400000);
 }
 
-// ── Deadline Alerts ───────────────────────────────────────────
+// ── Deadline & Bid Validity Alerts ──────────────────────────────
 // Escalation ladder per requirements: 5/4d assignee only, 3d +Team Lead,
 // 2/1d +Team Lead +Manager, deadline day/overdue +branch too.
 const ALERT_LADDER = {
@@ -1253,19 +1287,59 @@ function activeAlerts() {
     .map(t => ({ t, level: alertLevelFor(t.days_left) }))
     .filter(a => a.level);
 }
+
+// Bid validity ladder per requirements: 15/7d assignee+lead, 3d +Manager,
+// expiry (still Result Awaited) escalates to the branch as an urgent follow-up.
+const VALIDITY_LADDER = {
+  15: { key:'v15', label:'Validity: 15 Days', tier:1 },
+  7:  { key:'v7',  label:'Validity: 7 Days',  tier:2 },
+  3:  { key:'v3',  label:'Validity: 3 Days',  tier:3 },
+};
+function validityLevelFor(daysToExpiry) {
+  if (daysToExpiry === null || daysToExpiry === undefined) return null;
+  if (daysToExpiry <= 0) return { key:'vexpired', label:'Validity Expired — Follow Up', tier:4 };
+  return VALIDITY_LADDER[daysToExpiry] || null;
+}
+function tenderValidityExpiry(t) {
+  return t.bid_validity_extended_date || t.bid_validity_expiry || null;
+}
+function activeValidityAlerts() {
+  return allTenders
+    .filter(t => t.submission_status === 'Submitted' && ['Result Awaited', 'On Hold', ''].includes(t.tender_result_status || ''))
+    .map(t => {
+      const expiry = tenderValidityExpiry(t);
+      if (!expiry) return null;
+      const daysToExpiry = calcDaysLeftVal(expiry);
+      const level = validityLevelFor(daysToExpiry);
+      return level ? { t, level, daysToExpiry } : null;
+    })
+    .filter(Boolean);
+}
+
 function isAlertRecipient(t, level) {
   if (!currentUserProfile) return false;
   const me = (currentUser?.displayName || currentUser?.email || '').toLowerCase();
   if (me && (t.assigned_to || '').toLowerCase() === me) return true;
   const role = currentUserProfile.role;
-  // Team Lead / Manager get copied in from Priority (3 days) onward, for all tenders
+  // Team Lead / Manager get copied in from tier 2 onward, for all tenders
   if (level.tier >= 2 && ['admin', 'bidmanager'].includes(role)) return true;
-  // The relevant branch is escalated to on deadline day / once overdue
+  // The relevant branch (Marketing Manager) is escalated to at the final tier
   if (level.tier >= 4 && ['branchrep', 'branchmanager'].includes(role) && t.branch_code === currentUserProfile.branch_code) return true;
   return false;
 }
 function getMyAlerts() {
-  return activeAlerts().filter(a => isAlertRecipient(a.t, a.level)).sort((a, b) => a.t.days_left - b.t.days_left);
+  const items = [];
+  activeAlerts().forEach(a => {
+    if (!isAlertRecipient(a.t, a.level)) return;
+    items.push({ t: a.t, level: a.level, kind: 'deadline', daysNum: a.t.days_left,
+      subtitle: `${a.t.customer_name || ''} · ${a.t.branch_code || ''} · ${a.level.label}` });
+  });
+  activeValidityAlerts().forEach(a => {
+    if (!isAlertRecipient(a.t, a.level)) return;
+    items.push({ t: a.t, level: a.level, kind: 'validity', daysNum: a.daysToExpiry,
+      subtitle: `${a.t.customer_name || ''} · Bid Validity · ${a.level.label}` });
+  });
+  return items.sort((x, y) => x.daysNum - y.daysNum);
 }
 function alertDaysLabel(n) {
   return n < 0 ? Math.abs(n) + 'd overdue' : n === 0 ? 'Today' : n + 'd';
@@ -1278,16 +1352,16 @@ function renderAlertsPanel() {
   badge.style.display = mine.length ? 'flex' : 'none';
   badge.textContent = mine.length;
   panel.innerHTML = mine.length
-    ? `<div class="alerts-head">Deadline Alerts (${mine.length})</div>` + mine.map(a => `
+    ? `<div class="alerts-head">Alerts (${mine.length})</div>` + mine.map(a => `
         <div class="alert-row" onclick="closeAlertsPanel();openEditTender('${a.t.id}')">
-          <span class="alert-dot level-${a.level.key}"></span>
+          <span class="alert-dot tier-${a.level.tier}"></span>
           <div class="alert-body">
             <div class="alert-title">${esc(a.t.tender_unique_id || a.t.customer_name)}</div>
-            <div class="alert-sub">${esc(a.t.customer_name)} · ${esc(a.t.branch_code || '')} · ${a.level.label}</div>
+            <div class="alert-sub">${esc(a.subtitle)}</div>
           </div>
-          <div class="alert-days">${alertDaysLabel(a.t.days_left)}</div>
+          <div class="alert-days">${alertDaysLabel(a.daysNum)}</div>
         </div>`).join('')
-    : `<div class="alerts-empty">No deadline alerts 🎉</div>`;
+    : `<div class="alerts-empty">No alerts 🎉</div>`;
 }
 function toggleAlertsPanel(e) {
   if (e) e.stopPropagation();
@@ -1308,7 +1382,7 @@ document.addEventListener('click', e => {
 });
 
 function maybeShowAlertPopup() {
-  const urgent = getMyAlerts().filter(a => a.level.tier >= 3); // Urgent / Critical / Escalation
+  const urgent = getMyAlerts().filter(a => a.level.tier >= 3); // Urgent / Critical / Escalation tier, either kind
   if (!urgent.length) return;
   const seenKey = 'satguru_alerts_seen_' + (currentUser?.uid || '') + '_' + new Date().toISOString().slice(0, 10);
   if (localStorage.getItem(seenKey)) return;
@@ -1320,13 +1394,13 @@ function showAlertPopup(items) {
   overlay.className = 'modal-overlay';
   overlay.onclick = () => overlay.remove();
   overlay.innerHTML = `<div class="modal" onclick="event.stopPropagation()">
-    <h3>⏰ Deadline Alerts</h3>
+    <h3>⏰ Deadline &amp; Bid Validity Alerts</h3>
     <p style="font-size:13px;color:var(--muted);margin-bottom:14px">${items.length} tender${items.length > 1 ? 's need' : ' needs'} your attention.</p>
     <div style="display:flex;flex-direction:column;border:1px solid var(--border);border-radius:8px;max-height:320px;overflow-y:auto">
       ${items.map(a => `<div class="alert-row" onclick="this.closest('.modal-overlay').remove();openEditTender('${a.t.id}')">
-        <span class="alert-dot level-${a.level.key}"></span>
-        <div class="alert-body"><div class="alert-title">${esc(a.t.tender_unique_id || a.t.customer_name)}</div><div class="alert-sub">${esc(a.t.customer_name)} · ${a.level.label}</div></div>
-        <div class="alert-days">${alertDaysLabel(a.t.days_left)}</div>
+        <span class="alert-dot tier-${a.level.tier}"></span>
+        <div class="alert-body"><div class="alert-title">${esc(a.t.tender_unique_id || a.t.customer_name)}</div><div class="alert-sub">${esc(a.subtitle)}</div></div>
+        <div class="alert-days">${alertDaysLabel(a.daysNum)}</div>
       </div>`).join('')}
     </div>
     <div class="modal-actions"><button class="btn btn-primary" onclick="this.closest('.modal-overlay').remove()">Got it</button></div>
@@ -1387,6 +1461,7 @@ function renderDashboard() {
   document.getElementById('statValue').textContent = totalVal > 0 ? '$' + (totalVal/1000).toFixed(0) + 'K' : '—';
   const ledgerPending = allTenders.filter(t => t.tender_result_status === 'Won' && t.ledger_status && !['Completed', 'Exception Granted'].includes(t.ledger_status)).length;
   document.getElementById('statLedgerPending').textContent = ledgerPending;
+  document.getElementById('statValidityExpiring').textContent = activeValidityAlerts().length;
 
   // Branch-wise
   const branchMap = {};
@@ -1439,6 +1514,20 @@ function renderDashboard() {
         <td>${resultBadge(t.tender_result_status)}</td>
       </tr>`).join('')
     : '<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">📭</div><h3>No tenders awaiting result</h3></div></td></tr>';
+
+  // Bid validity expiring
+  const validityList = activeValidityAlerts().sort((a, b) => a.daysToExpiry - b.daysToExpiry).slice(0, 10);
+  document.getElementById('dashValidityBody').innerHTML = validityList.length
+    ? validityList.map(a => `<tr class="row-link" onclick="openEditTender('${a.t.id}')">
+        <td><b>${a.t.tender_unique_id || '—'}</b></td>
+        <td>${esc(a.t.customer_name)}</td>
+        <td>${esc(a.t.branch_code)}</td>
+        <td>${fmt(a.t.submission_date)}</td>
+        <td>${fmt(tenderValidityExpiry(a.t))}</td>
+        <td>${daysPill(a.daysToExpiry)}</td>
+        <td>${esc(a.t.marketing_person_spoc_name || '')}</td>
+      </tr>`).join('')
+    : '<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">📄</div><h3>No validity expiring soon</h3></div></td></tr>';
 }
 
 // ── Tender List ───────────────────────────────────────────────
@@ -1515,6 +1604,7 @@ function openNewTender() {
   document.getElementById('formTenderId').textContent = 'ID will be auto-generated on save';
   document.getElementById('f_date_created').value = new Date().toISOString().slice(0,10);
   document.getElementById('f_created_by_name').value = currentUser.displayName || currentUser.email;
+  calcBidValidityExpiry();
 
   // Pre-fill branch for branch rep
   if (currentUserProfile?.branch_code) {
@@ -1552,7 +1642,8 @@ async function openEditTender(id) {
     'potential_contract_period','potential_contract_period_months','potential_start_date','potential_end_date',
     'latest_followup','next_followup_date','hold_reason','hold_responsible','next_review_date',
     'client_feedback','winning_bidder','cancellation_reason','cancellation_evidence',
-    'ledger_status','ledger_exception_reason'
+    'ledger_status','ledger_exception_reason',
+    'bid_validity_days','bid_validity_extended_date','bid_validity_extension_note'
   ];
   fields.forEach(f => {
     const el = document.getElementById('f_' + f);
@@ -1563,6 +1654,9 @@ async function openEditTender(id) {
   await loadMarketingPersons();
   fillLegalEntity(t.branch_code || '');
   if (t.marketing_person_spoc_id) document.getElementById('f_marketing_person_spoc_id').value = t.marketing_person_spoc_id;
+
+  // Bid validity expiry — recompute from submission date + validity days
+  calcBidValidityExpiry();
 
   // Result-status conditional blocks + ledger control
   onResultStatusChange();
@@ -1617,6 +1711,8 @@ function resetForm() {
 
 // ── Save Tender ───────────────────────────────────────────────
 async function saveTender() {
+  calcBidValidityExpiry(); // ensure the auto-computed expiry is current before it's read below
+
   // Collect all form fields
   const getString = id => (document.getElementById('f_' + id)?.value || '').trim();
   const getNum   = id => parseFloat(document.getElementById('f_' + id)?.value) || 0;
@@ -1667,6 +1763,9 @@ async function saveTender() {
     if (document.getElementById('f_ledger_exception')?.checked && !getString('ledger_exception_reason')) {
       toast('A written reason is required to grant a ledger exception', 'error'); return;
     }
+  }
+  if (getString('bid_validity_extended_date') && !getString('bid_validity_extension_note')) {
+    toast('An extension reference (approval / supporting communication) is required when recording an extended validity date', 'error'); return;
   }
   if (getString('work_status') === 'Completed' && !getString('finished_date')) {
     toast('Finished Date is required when Work Status is Completed', 'error'); return;
@@ -1742,6 +1841,10 @@ async function saveTender() {
       : '',
     ledger_status: resultStatus === 'Won' ? getString('ledger_status') : '',
     ledger_exception_reason: document.getElementById('f_ledger_exception')?.checked ? getString('ledger_exception_reason') : '',
+    bid_validity_days: getNum('bid_validity_days') || null,
+    bid_validity_expiry: getString('bid_validity_expiry'),
+    bid_validity_extended_date: getString('bid_validity_extended_date'),
+    bid_validity_extension_note: getString('bid_validity_extension_note'),
     potential_contract_period: getString('potential_contract_period'),
     potential_contract_period_months: getNum('potential_contract_period_months'),
     potential_start_date: getString('potential_start_date'),
@@ -1979,6 +2082,25 @@ function calcContractEnd() {
     d.setMonth(d.getMonth() + months);
     document.getElementById('f_potential_end_date').value = d.toISOString().slice(0,10);
   }
+}
+
+const DEFAULT_BID_VALIDITY_DAYS = 90;
+function calcBidValidityExpiry() {
+  const expiryEl = document.getElementById('f_bid_validity_expiry');
+  const note = document.getElementById('bidValidityNote');
+  if (!expiryEl) return;
+  const submissionDate = document.getElementById('f_submission_date')?.value;
+  if (!submissionDate) {
+    expiryEl.value = '';
+    if (note) note.textContent = 'Set automatically once the Date of Submission is entered.';
+    return;
+  }
+  const daysInput = document.getElementById('f_bid_validity_days')?.value;
+  const days = daysInput ? parseInt(daysInput, 10) : DEFAULT_BID_VALIDITY_DAYS;
+  const d = new Date(submissionDate);
+  d.setDate(d.getDate() + days);
+  expiryEl.value = d.toISOString().slice(0, 10);
+  if (note) note.textContent = daysInput ? '' : `Using the default ${DEFAULT_BID_VALIDITY_DAYS} days — no validity period was specified.`;
 }
 
 // ── Delete tender ─────────────────────────────────────────────
@@ -2317,12 +2439,12 @@ async function saveMasterRecord() {
 
 // ── Export ────────────────────────────────────────────────────
 function exportExcel() {
-  const headers = ['Tender ID','Date Created','Client','Branch','Legal Entity','Bid Type','Deadline','Days Left','Work Status','Submission Status','Result Status','Assigned To','Potential Amount USD','Description'];
+  const headers = ['Tender ID','Date Created','Client','Branch','Legal Entity','Bid Type','Deadline','Days Left','Work Status','Submission Status','Result Status','Ledger Status','Bid Validity Expiry','Assigned To','Potential Amount USD','Description'];
   const rows = allTenders.map(t => [
     t.tender_unique_id||'', t.date_created||'', t.customer_name||'', t.branch_code||'', t.legal_entity||'',
     t.bid_type||'', t.deadline||'', t.days_left||'', t.work_status||'',
-    t.submission_status||'', t.tender_result_status||'', t.assigned_to||'',
-    t.potential_amount_usd||'', (t.bid_description||'').slice(0,100)
+    t.submission_status||'', t.tender_result_status||'', t.ledger_status||'', tenderValidityExpiry(t)||'',
+    t.assigned_to||'', t.potential_amount_usd||'', (t.bid_description||'').slice(0,100)
   ]);
   const csv = [headers, ...rows].map(r => r.map(c => '"' + String(c).replace(/"/g,'""') + '"').join(',')).join('\n');
   const a = document.createElement('a');

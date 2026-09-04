@@ -173,6 +173,7 @@
     .badge-awaited { background: #fef3c7; color: #92400e; }
     .badge-overdue { background: #fee2e2; color: #991b1b; }
     .badge-disqualified { background: #fce7f3; color: #9d174d; }
+    .badge-ledger-pending { background: #fee2e2; color: #991b1b; }
 
     /* Filter bar */
     .filter-bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
@@ -364,6 +365,7 @@
       <div class="stat-card orange"><div class="stat-label">Pending Submission</div><div class="stat-val" id="statPending">—</div><div class="stat-sub">Not yet submitted</div></div>
       <div class="stat-card green"><div class="stat-label">Submitted</div><div class="stat-val" id="statSubmitted">—</div><div class="stat-sub">Total submitted</div></div>
       <div class="stat-card blue"><div class="stat-label">Total Value (USD)</div><div class="stat-val" id="statValue">—</div><div class="stat-sub">Potential amount</div></div>
+      <div class="stat-card red"><div class="stat-label">Ledger Pending</div><div class="stat-val" id="statLedgerPending">—</div><div class="stat-sub">Won, not yet closed</div></div>
     </div>
 
     <!-- Branch-wise summary -->
@@ -412,7 +414,7 @@
       </select>
       <select id="filterResultStatus" onchange="renderList()">
         <option value="">Result Status</option>
-        <option>Result Awaited</option><option>Won</option><option>Lost</option><option>Cancelled</option><option>Disqualified</option><option>Not Participated</option>
+        <option>Result Awaited</option><option>On Hold</option><option>Won</option><option>Lost</option><option>Cancelled</option><option>Disqualified</option><option>Not Participated</option>
       </select>
       <select id="filterBidType" onchange="renderList()"><option value="">Bid Type</option><option>RFP</option><option>RFQ</option><option>EOI</option><option>SR</option><option>Tender</option></select>
       <button class="btn btn-outline btn-sm" onclick="clearFilters()">Clear</button>
@@ -662,9 +664,9 @@
             </div>
             <div class="form-group">
               <label>Tender Result Status</label>
-              <select class="form-control" id="f_tender_result_status">
+              <select class="form-control" id="f_tender_result_status" onchange="onResultStatusChange()">
                 <option value="">— Select —</option>
-                <option>Result Awaited</option><option>Won</option><option>Lost</option>
+                <option>Result Awaited</option><option>On Hold</option><option>Won</option><option>Lost</option>
                 <option>Cancelled</option><option>Disqualified</option><option>Not Participated</option>
               </select>
             </div>
@@ -675,6 +677,76 @@
             <div class="form-group">
               <label>Lost Reason</label>
               <input class="form-control" id="f_lost_reason" placeholder="Reason for losing if applicable"/>
+            </div>
+          </div>
+
+          <!-- Result Awaited: follow-up -->
+          <div id="resultBlock-awaited" class="result-block" style="display:none">
+            <div class="form-section-title" style="margin-top:20px">Result Awaited — Follow-Up</div>
+            <div class="form-grid">
+              <div class="form-group full"><label>Latest Follow-Up</label><textarea class="form-control" id="f_latest_followup" rows="2" placeholder="Latest client response / follow-up note"></textarea></div>
+              <div class="form-group"><label>Next Follow-Up Date</label><input type="date" class="form-control" id="f_next_followup_date"/></div>
+            </div>
+          </div>
+
+          <!-- On Hold -->
+          <div id="resultBlock-hold" class="result-block" style="display:none">
+            <div class="form-section-title" style="margin-top:20px">On Hold — Details</div>
+            <div class="form-grid">
+              <div class="form-group"><label>Reason <span class="req">*</span></label><input class="form-control" id="f_hold_reason"/></div>
+              <div class="form-group"><label>Responsible Person <span class="req">*</span></label><input class="form-control" id="f_hold_responsible"/></div>
+              <div class="form-group"><label>Next Review Date <span class="req">*</span></label><input type="date" class="form-control" id="f_next_review_date"/></div>
+            </div>
+          </div>
+
+          <!-- Lost -->
+          <div id="resultBlock-lost" class="result-block" style="display:none">
+            <div class="form-section-title" style="margin-top:20px">Lost — Details</div>
+            <div class="form-grid">
+              <div class="form-group full"><label>Client Feedback</label><textarea class="form-control" id="f_client_feedback" rows="2"></textarea></div>
+              <div class="form-group"><label>Winning Bidder (if known)</label><input class="form-control" id="f_winning_bidder"/></div>
+            </div>
+          </div>
+
+          <!-- Cancelled -->
+          <div id="resultBlock-cancelled" class="result-block" style="display:none">
+            <div class="form-section-title" style="margin-top:20px">Cancelled — Details</div>
+            <div class="form-grid">
+              <div class="form-group"><label>Cancellation Reason <span class="req">*</span></label><input class="form-control" id="f_cancellation_reason"/></div>
+              <div class="form-group"><label>Evidence Note</label><input class="form-control" id="f_cancellation_evidence" placeholder="Reference to evidence uploaded in the Documents tab, if any"/></div>
+            </div>
+          </div>
+
+          <!-- Won: ledger control -->
+          <div id="resultBlock-won" class="result-block" style="display:none">
+            <div class="form-section-title" style="margin-top:20px">Won — Ledger Control</div>
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Client Type <span class="req">*</span></label>
+                <select class="form-control" id="f_client_type" onchange="onClientTypeChange()">
+                  <option value="">— Select —</option>
+                  <option>New Client</option><option>Existing Client</option>
+                </select>
+              </div>
+              <div class="form-group" id="fg_existing_ledger" style="display:none">
+                <label>Select Existing Ledger <span class="req">*</span></label>
+                <select class="form-control" id="f_existing_ledger_id" onchange="updateLedgerStatusPreview()"><option value="">— Select Ledger —</option></select>
+              </div>
+              <div class="form-group" id="fg_new_ledger_name" style="display:none">
+                <label>New Ledger Name <span class="req">*</span></label>
+                <input class="form-control" id="f_new_ledger_name" placeholder="Name for the new ledger to be created" oninput="updateLedgerStatusPreview()"/>
+              </div>
+              <div class="form-group">
+                <label>Ledger Status</label>
+                <input class="form-control" id="f_ledger_status" readonly/>
+                <span class="field-note">Won tenders stay "Ledger Pending" until Accounts/Finance confirm the ledger.</span>
+              </div>
+            </div>
+            <div id="ledgerExceptionBlock" style="display:none;margin-top:14px;padding:14px;background:#fff8e1;border-radius:8px;border:1px solid #f5deb3">
+              <label style="font-size:12px;font-weight:600;color:var(--warning);display:flex;align-items:center;gap:8px;cursor:pointer">
+                <input type="checkbox" id="f_ledger_exception" onchange="toggleLedgerExceptionReason()"/> Admin Exception — allow closing without a completed ledger
+              </label>
+              <textarea class="form-control" id="f_ledger_exception_reason" rows="2" placeholder="Written reason for the exception (mandatory, recorded in the audit trail)" style="margin-top:8px;display:none" oninput="updateLedgerStatusPreview()"></textarea>
             </div>
           </div>
         </div>
@@ -806,6 +878,28 @@
           <tbody id="masterClients"></tbody></table>
         </div>
       </div>
+      <!-- Ledgers -->
+      <div class="card" style="grid-column:1/-1">
+        <div class="card-header">
+          <div class="card-title">Approved Ledgers</div>
+          <button class="btn btn-primary btn-sm" onclick="openMasterModal('ledger')">+ Add Ledger</button>
+        </div>
+        <div class="card-body" style="padding:0">
+          <table><thead><tr><th>Ledger Name</th><th>Client</th><th>Branch</th><th>Active</th><th>Actions</th></tr></thead>
+          <tbody id="masterLedgers"></tbody></table>
+        </div>
+      </div>
+      <!-- Ledger Requests — Accounts/Finance queue -->
+      <div class="card" style="grid-column:1/-1">
+        <div class="card-header">
+          <div class="card-title">🧾 Ledger Requests — Accounts/Finance Queue</div>
+          <div style="font-size:12px;color:var(--muted)">Raised automatically when a Won tender names a new client's ledger</div>
+        </div>
+        <div class="card-body" style="padding:0">
+          <table><thead><tr><th>Tender ID</th><th>Client</th><th>Branch</th><th>Requested Ledger Name</th><th>Requested By</th><th>Status</th><th></th></tr></thead>
+          <tbody id="masterLedgerRequests"></tbody></table>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -920,7 +1014,7 @@
           <select id="rptBranch" class="form-control"><option value="">All Branches</option></select>
           <select id="rptResultStatus" class="form-control">
             <option value="">All Results</option>
-            <option>Result Awaited</option><option>Won</option><option>Lost</option><option>Cancelled</option><option>Disqualified</option><option>Not Participated</option>
+            <option>Result Awaited</option><option>On Hold</option><option>Won</option><option>Lost</option><option>Cancelled</option><option>Disqualified</option><option>Not Participated</option>
           </select>
           <select id="rptBidType" class="form-control">
             <option value="">All Bid Types</option>
@@ -1110,6 +1204,7 @@ async function loadAllData() {
   renderAlertsPanel();
   maybeShowAlertPopup();
   await loadBranchesIntoSelects();
+  await loadLedgersIntoSelects();
   loadMasters();
   // If came from portal tracker, open new tender form pre-filled
   if (new URLSearchParams(location.search).has('quick') && window._prefillData) {
@@ -1290,6 +1385,8 @@ function renderDashboard() {
   document.getElementById('statPending').textContent = pending;
   document.getElementById('statSubmitted').textContent = submitted;
   document.getElementById('statValue').textContent = totalVal > 0 ? '$' + (totalVal/1000).toFixed(0) + 'K' : '—';
+  const ledgerPending = allTenders.filter(t => t.tender_result_status === 'Won' && t.ledger_status && !['Completed', 'Exception Granted'].includes(t.ledger_status)).length;
+  document.getElementById('statLedgerPending').textContent = ledgerPending;
 
   // Branch-wise
   const branchMap = {};
@@ -1384,7 +1481,7 @@ function renderList() {
       <td>${daysPill(t.days_left)}</td>
       <td>${workBadge(t.work_status)}</td>
       <td>${subBadge(t.submission_status)}</td>
-      <td>${resultBadge(t.tender_result_status)}</td>
+      <td>${resultBadge(t.tender_result_status, t.ledger_status)}</td>
       <td>${esc(t.assigned_to)}</td>
       <td><div class="tbl-actions" onclick="event.stopPropagation()">
         <button class="btn btn-outline btn-sm" onclick="openEditTender('${t.id}')">Edit</button>
@@ -1452,7 +1549,10 @@ async function openEditTender(id) {
     'completed_percentage','work_status','marketing_person_spoc_id',
     'submission_status','submission_date','submitted_to','submission_type','submission_address',
     'submission_route','submitted_by','expected_result_date','tender_result_status','won_date','lost_reason',
-    'potential_contract_period','potential_contract_period_months','potential_start_date','potential_end_date'
+    'potential_contract_period','potential_contract_period_months','potential_start_date','potential_end_date',
+    'latest_followup','next_followup_date','hold_reason','hold_responsible','next_review_date',
+    'client_feedback','winning_bidder','cancellation_reason','cancellation_evidence',
+    'ledger_status','ledger_exception_reason'
   ];
   fields.forEach(f => {
     const el = document.getElementById('f_' + f);
@@ -1463,6 +1563,21 @@ async function openEditTender(id) {
   await loadMarketingPersons();
   fillLegalEntity(t.branch_code || '');
   if (t.marketing_person_spoc_id) document.getElementById('f_marketing_person_spoc_id').value = t.marketing_person_spoc_id;
+
+  // Result-status conditional blocks + ledger control
+  onResultStatusChange();
+  document.getElementById('f_client_type').value = t.client_type || '';
+  onClientTypeChange();
+  if (t.client_type === 'Existing Client' && t.existing_ledger_id) {
+    document.getElementById('f_existing_ledger_id').value = t.existing_ledger_id;
+  } else if (t.client_type === 'New Client') {
+    document.getElementById('f_new_ledger_name').value = t.ledger_name || '';
+  }
+  if (t.ledger_exception_reason) {
+    document.getElementById('f_ledger_exception').checked = true;
+    toggleLedgerExceptionReason();
+  }
+  updateLedgerStatusPreview();
 
   // Days left recalc
   calcDaysLeft();
@@ -1485,12 +1600,19 @@ async function openEditTender(id) {
 
 function resetForm() {
   const inputs = document.querySelectorAll('#tab-form .form-control, #tab-form textarea, #tab-form select');
-  inputs.forEach(el => { if (!el.readOnly) el.value = ''; });
+  inputs.forEach(el => { el.value = ''; }); // readonly fields (legal entity, ledger status, etc.) are re-derived, not user-typed
   document.getElementById('contactsContainer').innerHTML = '';
   document.getElementById('docsContainer').innerHTML = '';
   document.getElementById('remarksHistory').innerHTML = '<div style="font-size:13px;font-weight:600;color:var(--muted);margin-bottom:10px">Remark History</div>';
   document.getElementById('historyContainer').innerHTML = '';
   document.getElementById('f_new_remark').value = '';
+  document.querySelectorAll('.result-block').forEach(b => b.style.display = 'none');
+  const exceptionCb = document.getElementById('f_ledger_exception');
+  if (exceptionCb) exceptionCb.checked = false;
+  const exceptionBlock = document.getElementById('ledgerExceptionBlock');
+  if (exceptionBlock) exceptionBlock.style.display = 'none';
+  const exceptionReasonEl = document.getElementById('f_ledger_exception_reason');
+  if (exceptionReasonEl) exceptionReasonEl.style.display = 'none';
 }
 
 // ── Save Tender ───────────────────────────────────────────────
@@ -1520,14 +1642,38 @@ async function saveTender() {
   }
 
   // Result validation
-  if (getString('tender_result_status') === 'Won' && !getString('won_date')) {
+  const resultStatus = getString('tender_result_status');
+  if (resultStatus === 'Won' && !getString('won_date')) {
     toast('Won Date is required when Result Status is Won', 'error'); return;
   }
-  if (getString('tender_result_status') === 'Lost' && !getString('lost_reason')) {
+  if (resultStatus === 'Lost' && !getString('lost_reason')) {
     toast('Lost Reason is required when Result Status is Lost', 'error'); return;
+  }
+  if (resultStatus === 'On Hold' && (!getString('hold_reason') || !getString('hold_responsible') || !getString('next_review_date'))) {
+    toast('Reason, Responsible Person and Next Review Date are required when Result Status is On Hold', 'error'); return;
+  }
+  if (resultStatus === 'Cancelled' && !getString('cancellation_reason')) {
+    toast('Cancellation Reason is required when Result Status is Cancelled', 'error'); return;
+  }
+  if (resultStatus === 'Won') {
+    const clientType = getString('client_type');
+    if (!clientType) { toast('Client Type (New / Existing) is required for Won tenders', 'error'); return; }
+    if (clientType === 'Existing Client' && !getString('existing_ledger_id')) {
+      toast('Select the existing ledger for this client', 'error'); return;
+    }
+    if (clientType === 'New Client' && !getString('new_ledger_name')) {
+      toast('Enter a name for the new ledger to be created', 'error'); return;
+    }
+    if (document.getElementById('f_ledger_exception')?.checked && !getString('ledger_exception_reason')) {
+      toast('A written reason is required to grant a ledger exception', 'error'); return;
+    }
   }
   if (getString('work_status') === 'Completed' && !getString('finished_date')) {
     toast('Finished Date is required when Work Status is Completed', 'error'); return;
+  }
+  if (getString('work_status') === 'Completed' && resultStatus === 'Won' && !['Completed', 'Exception Granted'].includes(getString('ledger_status'))) {
+    toast('Won tenders cannot be marked Completed until the ledger is completed (or an Admin exception is recorded).', 'error');
+    return;
   }
 
   // Duplicate check
@@ -1578,6 +1724,24 @@ async function saveTender() {
     tender_result_status: getString('tender_result_status'),
     won_date: getString('won_date'),
     lost_reason: getString('lost_reason'),
+    latest_followup: getString('latest_followup'),
+    next_followup_date: getString('next_followup_date'),
+    hold_reason: getString('hold_reason'),
+    hold_responsible: getString('hold_responsible'),
+    next_review_date: getString('next_review_date'),
+    client_feedback: getString('client_feedback'),
+    winning_bidder: getString('winning_bidder'),
+    cancellation_reason: getString('cancellation_reason'),
+    cancellation_evidence: getString('cancellation_evidence'),
+    client_type: resultStatus === 'Won' ? getString('client_type') : '',
+    existing_ledger_id: resultStatus === 'Won' ? getString('existing_ledger_id') : '',
+    ledger_name: resultStatus === 'Won'
+      ? (getString('client_type') === 'Existing Client'
+          ? (ledgers.find(l => l.id === getString('existing_ledger_id'))?.name || '')
+          : getString('new_ledger_name'))
+      : '',
+    ledger_status: resultStatus === 'Won' ? getString('ledger_status') : '',
+    ledger_exception_reason: document.getElementById('f_ledger_exception')?.checked ? getString('ledger_exception_reason') : '',
     potential_contract_period: getString('potential_contract_period'),
     potential_contract_period_months: getNum('potential_contract_period_months'),
     potential_start_date: getString('potential_start_date'),
@@ -1610,6 +1774,8 @@ async function saveTender() {
     at: new Date().toISOString()
   };
 
+  const prevLedgerStatus = editingTenderId ? (allTenders.find(t => t.id === editingTenderId)?.ledger_status || '') : '';
+
   if (editingTenderId) {
     const prev = allTenders.find(t => t.id === editingTenderId);
     data.status_history = [historyEntry, ...(prev?.status_history || [])].slice(0, 50);
@@ -1639,6 +1805,24 @@ async function saveTender() {
       editingTenderId = ref.id;
       toast('Tender created: ' + data.tender_unique_id, 'success');
     } catch (e) { toast('Error creating: ' + e.message, 'error'); return; }
+  }
+
+  // Raise a ledger creation request for Accounts/Finance the first time a Won
+  // tender names a new client's ledger (not on every subsequent save).
+  if (data.ledger_status === 'Request Sent to Accounts' && !['Request Sent to Accounts', 'Completed'].includes(prevLedgerStatus)) {
+    try {
+      await db.collection('ledger_requests').add({
+        tender_id: editingTenderId,
+        tender_unique_id: data.tender_unique_id || allTenders.find(t => t.id === editingTenderId)?.tender_unique_id || '',
+        customer_name: data.customer_name,
+        branch_code: data.branch_code,
+        requested_ledger_name: data.ledger_name,
+        requested_by: currentUser.displayName || currentUser.email,
+        requested_at: new Date().toISOString(),
+        status: 'Open'
+      });
+      toast('Ledger creation request sent to Accounts/Finance', 'info');
+    } catch (e) { console.error('ledger_requests', e); }
   }
 
   // Upload pending documents
@@ -1811,6 +1995,12 @@ async function deleteTender(id) {
 // ── Branches & Marketing Persons ──────────────────────────────
 let branches = [];
 let marketingPersons = [];
+let ledgers = [];
+
+async function loadLedgersIntoSelects() {
+  const snap = await db.collection('ledgers').where('active', '==', true).get();
+  ledgers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
 
 async function loadBranchesIntoSelects() {
   const snap = await db.collection('branches').where('active','==',true).get();
@@ -1852,6 +2042,65 @@ function fillLegalEntity(branchCode) {
     regionEl.value = b?.region || '';
     if (note) { note.textContent = '⚠ No legal entity mapped for this branch — ask Admin to update the Branch-Entity Master before submission.'; note.style.color = 'var(--danger)'; }
   }
+}
+
+// ── Post-Submission Result & Ledger Control ────────────────────
+const RESULT_BLOCK_MAP = { 'Result Awaited': 'awaited', 'On Hold': 'hold', 'Lost': 'lost', 'Cancelled': 'cancelled', 'Won': 'won' };
+
+function onResultStatusChange() {
+  const status = document.getElementById('f_tender_result_status').value;
+  document.querySelectorAll('.result-block').forEach(b => b.style.display = 'none');
+  const key = RESULT_BLOCK_MAP[status];
+  if (!key) return;
+  const block = document.getElementById('resultBlock-' + key);
+  if (block) block.style.display = '';
+  if (key === 'won') {
+    const exceptionBlock = document.getElementById('ledgerExceptionBlock');
+    if (exceptionBlock) exceptionBlock.style.display = currentUserProfile?.role === 'admin' ? '' : 'none';
+    populateLedgerSelect();
+    updateLedgerStatusPreview();
+  }
+}
+
+function populateLedgerSelect() {
+  const sel = document.getElementById('f_existing_ledger_id');
+  if (!sel) return;
+  const client = (document.getElementById('f_customer_name')?.value || '').trim().toLowerCase();
+  const matches = client ? ledgers.filter(l => (l.client_name || '').toLowerCase() === client) : [];
+  const list = matches.length ? matches : ledgers;
+  const current = sel.value;
+  sel.innerHTML = '<option value="">— Select Ledger —</option>' +
+    list.map(l => `<option value="${l.id}">${esc(l.name)}${l.client_name ? ' — ' + esc(l.client_name) : ''}</option>`).join('');
+  if (current) sel.value = current;
+}
+
+function onClientTypeChange() {
+  const type = document.getElementById('f_client_type').value;
+  document.getElementById('fg_existing_ledger').style.display = type === 'Existing Client' ? '' : 'none';
+  document.getElementById('fg_new_ledger_name').style.display = type === 'New Client' ? '' : 'none';
+  updateLedgerStatusPreview();
+}
+
+function toggleLedgerExceptionReason() {
+  const checked = document.getElementById('f_ledger_exception')?.checked;
+  const reasonEl = document.getElementById('f_ledger_exception_reason');
+  if (reasonEl) reasonEl.style.display = checked ? '' : 'none';
+  updateLedgerStatusPreview();
+}
+
+function updateLedgerStatusPreview() {
+  const el = document.getElementById('f_ledger_status');
+  if (!el) return;
+  const clientType = document.getElementById('f_client_type')?.value;
+  const existingLedger = document.getElementById('f_existing_ledger_id')?.value;
+  const newLedgerName = document.getElementById('f_new_ledger_name')?.value.trim();
+  const exceptionChecked = document.getElementById('f_ledger_exception')?.checked;
+  const exceptionReason = document.getElementById('f_ledger_exception_reason')?.value.trim();
+
+  if (clientType === 'Existing Client' && existingLedger) el.value = 'Completed';
+  else if (clientType === 'New Client' && newLedgerName) el.value = 'Request Sent to Accounts';
+  else if (exceptionChecked && exceptionReason) el.value = 'Exception Granted';
+  else el.value = 'Ledger Pending';
 }
 
 async function loadMarketingPersons() {
@@ -1926,6 +2175,59 @@ async function loadMasters() {
     const c = d.data();
     return `<tr><td><b>${esc(c.name)}</b></td><td>${esc(c.global_name||'')}</td><td>${esc(c.country||'')}</td><td>${c.active!==false?'✅':'❌'}</td><td><button class="btn btn-outline btn-sm" onclick="toggleActive('clients','${d.id}',${c.active!==false})">Toggle</button></td></tr>`;
   }).join('') || '<tr><td colspan="5" style="color:var(--muted);padding:20px">No clients yet</td></tr>';
+
+  // Ledgers
+  const lgSnap = await db.collection('ledgers').get();
+  const ledgerEl = document.getElementById('masterLedgers');
+  if (ledgerEl) ledgerEl.innerHTML = lgSnap.docs.map(d => {
+    const l = d.data();
+    return `<tr><td><b>${esc(l.name)}</b></td><td>${esc(l.client_name||'')}</td><td>${esc(l.branch_code||'')}</td><td>${l.active!==false?'✅':'❌'}</td><td><button class="btn btn-outline btn-sm" onclick="toggleActive('ledgers','${d.id}',${l.active!==false})">Toggle</button></td></tr>`;
+  }).join('') || '<tr><td colspan="5" style="color:var(--muted);padding:20px">No ledgers yet</td></tr>';
+
+  // Ledger requests — Accounts/Finance queue
+  const reqSnap = await db.collection('ledger_requests').orderBy('requested_at', 'desc').limit(50).get();
+  const reqEl = document.getElementById('masterLedgerRequests');
+  if (reqEl) reqEl.innerHTML = reqSnap.docs.map(d => {
+    const r = d.data();
+    const isOpen = r.status !== 'Completed';
+    return `<tr>
+      <td>${esc(r.tender_unique_id||'')}</td><td>${esc(r.customer_name||'')}</td><td>${esc(r.branch_code||'')}</td>
+      <td>${esc(r.requested_ledger_name||'')}</td><td>${esc(r.requested_by||'')}</td>
+      <td>${isOpen ? '<span class="badge badge-awaited">Open</span>' : '<span class="badge badge-completed">Completed</span>'}</td>
+      <td>${isOpen ? `<button class="btn btn-primary btn-sm" onclick="markLedgerCreated('${d.id}')">Mark Created</button>` : '—'}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="7" style="color:var(--muted);padding:20px">No ledger requests</td></tr>';
+}
+
+async function markLedgerCreated(reqId) {
+  if (!canManageMasters() && currentUserProfile?.role !== 'bidmanager') { toast('Admin or Bid Manager access required', 'error'); return; }
+  const reqSnap = await db.collection('ledger_requests').doc(reqId).get();
+  if (!reqSnap.exists) return;
+  const req = reqSnap.data();
+  const finalName = prompt('Confirm the final ledger name as created by Accounts/Finance:', req.requested_ledger_name || '');
+  if (!finalName || !finalName.trim()) return;
+  const name = finalName.trim();
+
+  await db.collection('ledgers').add({ name, client_name: req.customer_name || '', branch_code: req.branch_code || '', active: true });
+  await db.collection('ledger_requests').doc(reqId).update({
+    status: 'Completed', completed_by: currentUser.displayName || currentUser.email, completed_at: new Date().toISOString(), final_ledger_name: name
+  });
+
+  if (req.tender_id) {
+    const tSnap = await db.collection('tenders').doc(req.tender_id).get();
+    const prevHistory = tSnap.exists ? (tSnap.data().status_history || []) : [];
+    await db.collection('tenders').doc(req.tender_id).update({
+      ledger_name: name,
+      ledger_status: 'Completed',
+      status_history: [{ action: 'Ledger Completed by Accounts/Finance', by: currentUser.displayName || currentUser.email, at: new Date().toISOString() }, ...prevHistory].slice(0, 50)
+    });
+  }
+  toast('Ledger created and linked to the tender', 'success');
+  loadMasters();
+  loadLedgersIntoSelects();
+  await loadTenders();
+  renderList();
+  renderDashboard();
 }
 
 async function updateUserRole(uid, role) {
@@ -1948,12 +2250,14 @@ function openMasterModal(type) {
   if (!canManageMasters()) { toast('Admin access required', 'error'); return; }
   masterModalType = type;
   const modal = document.getElementById('masterModal');
-  const titles = { branch: 'Add Branch', marketing: 'Add Marketing Person', client: 'Add Client' };
+  const titles = { branch: 'Add Branch', marketing: 'Add Marketing Person', client: 'Add Client', ledger: 'Add Ledger' };
   document.getElementById('masterModalTitle').textContent = titles[type] || 'Add Record';
   if (type === 'branch') {
     document.getElementById('masterModalBody').innerHTML = `<div class="form-grid"><div class="form-group"><label>Branch Code <span class="req">*</span></label><input class="form-control" id="mm_id" placeholder="e.g. DXB"/></div><div class="form-group"><label>City</label><input class="form-control" id="mm_city" placeholder="Dubai"/></div><div class="form-group"><label>Country</label><input class="form-control" id="mm_country" placeholder="UAE"/></div><div class="form-group"><label>Legal Entity <span class="req">*</span></label><input class="form-control" id="mm_legal_entity" placeholder="Approved registered entity name"/></div><div class="form-group"><label>Region</label><input class="form-control" id="mm_region" placeholder="e.g. East Africa"/></div><div class="form-group"><label>Currency</label><input class="form-control" id="mm_currency" placeholder="e.g. USD"/></div></div><p style="font-size:11px;color:var(--muted);margin-top:10px">Legal Entity auto-fills on the tender form once this branch is selected, and is locked for normal users.</p>`;
   } else if (type === 'client') {
     document.getElementById('masterModalBody').innerHTML = `<div class="form-grid"><div class="form-group"><label>Client Name <span class="req">*</span></label><input class="form-control" id="mm_name" placeholder="Client / Company name"/></div><div class="form-group"><label>Global Name</label><input class="form-control" id="mm_global" placeholder="Parent company (if any)"/></div><div class="form-group"><label>Country</label><input class="form-control" id="mm_country" placeholder="Country"/></div><div class="form-group"><label>Industry</label><input class="form-control" id="mm_industry" placeholder="e.g. Government, NGO, Corporate"/></div></div>`;
+  } else if (type === 'ledger') {
+    document.getElementById('masterModalBody').innerHTML = `<div class="form-grid"><div class="form-group"><label>Ledger Name <span class="req">*</span></label><input class="form-control" id="mm_name" placeholder="Approved ledger name"/></div><div class="form-group"><label>Client Name</label><input class="form-control" id="mm_client" placeholder="Must match Customer / Client Name used on tenders"/></div><div class="form-group"><label>Branch Code</label><select class="form-control" id="mm_branch"><option value="">— Any —</option>${branches.map(b => `<option value="${b.id}">${b.id}</option>`).join('')}</select></div></div>`;
   } else {
     document.getElementById('masterModalBody').innerHTML = `<div class="form-grid"><div class="form-group"><label>Name <span class="req">*</span></label><input class="form-control" id="mm_name" placeholder="Full name"/></div><div class="form-group"><label>Email</label><input class="form-control" id="mm_email" placeholder="email@..."/></div><div class="form-group"><label>Branch Code <span class="req">*</span></label><select class="form-control" id="mm_branch">${branches.map(b => `<option value="${b.id}">${b.id}</option>`).join('')}</select></div></div>`;
   }
@@ -1984,6 +2288,16 @@ async function saveMasterRecord() {
       active: true
     });
     toast('Client added: ' + name, 'success');
+  } else if (masterModalType === 'ledger') {
+    const name = document.getElementById('mm_name')?.value.trim();
+    if (!name) { toast('Ledger name required', 'error'); return; }
+    await db.collection('ledgers').add({
+      name,
+      client_name: document.getElementById('mm_client')?.value.trim() || '',
+      branch_code: document.getElementById('mm_branch')?.value || '',
+      active: true
+    });
+    toast('Ledger added: ' + name, 'success');
   } else {
     const name = document.getElementById('mm_name')?.value.trim();
     if (!name) { toast('Name required', 'error'); return; }
@@ -1998,6 +2312,7 @@ async function saveMasterRecord() {
   closeMasterModal();
   loadMasters();
   loadBranchesIntoSelects();
+  loadLedgersIntoSelects();
 }
 
 // ── Export ────────────────────────────────────────────────────
@@ -2247,7 +2562,7 @@ function runReport() {
     <td>${daysPill(t.days_left)}</td>
     <td>${workBadge(t.work_status)}</td>
     <td>${subBadge(t.submission_status)}</td>
-    <td>${resultBadge(t.tender_result_status)}</td>
+    <td>${resultBadge(t.tender_result_status, t.ledger_status)}</td>
     <td>${esc(t.assigned_to)}</td>
     <td>${t.potential_amount_usd ? '$'+parseFloat(t.potential_amount_usd).toLocaleString() : '—'}</td>
   </tr>`).join('') : '<tr><td colspan="12" style="padding:40px;text-align:center;color:var(--muted)">No records found</td></tr>';
@@ -2303,8 +2618,11 @@ function subBadge(s) {
   const map = { 'Pending':'badge-new','Submitted':'badge-submitted','Not Submitted':'badge-cancelled','Delayed':'badge-awaited','Extended':'badge-inprogress' };
   return `<span class="badge ${map[s]||'badge-new'}">${s||'—'}</span>`;
 }
-function resultBadge(s) {
-  const map = { 'Result Awaited':'badge-awaited','Won':'badge-won','Lost':'badge-lost','Cancelled':'badge-cancelled','Disqualified':'badge-disqualified','Not Participated':'badge-cancelled' };
+function resultBadge(s, ledgerStatus) {
+  const map = { 'Result Awaited':'badge-awaited','On Hold':'badge-awaited','Won':'badge-won','Lost':'badge-lost','Cancelled':'badge-cancelled','Disqualified':'badge-disqualified','Not Participated':'badge-cancelled' };
+  if (s === 'Won' && ledgerStatus && !['Completed', 'Exception Granted'].includes(ledgerStatus)) {
+    return `<span class="badge badge-ledger-pending">Won — Ledger Pending</span>`;
+  }
   return `<span class="badge ${map[s]||'badge-new'}">${s||'—'}</span>`;
 }
 function alertBadge(level) {

@@ -1107,6 +1107,8 @@ let allTenders = [];
 let editingTenderId = null;
 let pendingDocuments = []; // docs queued for upload on new tender
 let masterModalType = null;
+let loadedLedgerStatus = ''; // ledger_status as stored on the tender being edited — guards against re-deriving it back to 'Pending'/'Request Sent' on an unrelated save
+let loadedClientType = '';
 
 // ── Quick-track pre-fill (from portal tracker) ───────────────
 function checkQuickPrefill() {
@@ -1659,6 +1661,8 @@ async function openEditTender(id) {
   calcBidValidityExpiry();
 
   // Result-status conditional blocks + ledger control
+  loadedLedgerStatus = t.ledger_status || '';
+  loadedClientType = t.client_type || '';
   onResultStatusChange();
   document.getElementById('f_client_type').value = t.client_type || '';
   onClientTypeChange();
@@ -1707,6 +1711,8 @@ function resetForm() {
   if (exceptionBlock) exceptionBlock.style.display = 'none';
   const exceptionReasonEl = document.getElementById('f_ledger_exception_reason');
   if (exceptionReasonEl) exceptionReasonEl.style.display = 'none';
+  loadedLedgerStatus = '';
+  loadedClientType = '';
 }
 
 // ── Save Tender ───────────────────────────────────────────────
@@ -1841,7 +1847,7 @@ async function saveTender() {
       : '',
     ledger_status: resultStatus === 'Won' ? getString('ledger_status') : '',
     ledger_exception_reason: document.getElementById('f_ledger_exception')?.checked ? getString('ledger_exception_reason') : '',
-    bid_validity_days: getNum('bid_validity_days') || null,
+    bid_validity_days: getString('bid_validity_days') !== '' ? getNum('bid_validity_days') : null,
     bid_validity_expiry: getString('bid_validity_expiry'),
     bid_validity_extended_date: getString('bid_validity_extended_date'),
     bid_validity_extension_note: getString('bid_validity_extension_note'),
@@ -2214,6 +2220,17 @@ function updateLedgerStatusPreview() {
   const el = document.getElementById('f_ledger_status');
   if (!el) return;
   const clientType = document.getElementById('f_client_type')?.value;
+
+  // Once Accounts/Finance has completed the ledger (via the Masters queue),
+  // keep it Completed while editing unrelated fields on the same client type —
+  // otherwise re-deriving from client_type/ledger-name alone would silently
+  // regress a completed ledger back to "Request Sent to Accounts" (or
+  // "Pending") on every subsequent save, re-blocking the tender's closure.
+  if (loadedLedgerStatus === 'Completed' && clientType === loadedClientType) {
+    el.value = 'Completed';
+    return;
+  }
+
   const existingLedger = document.getElementById('f_existing_ledger_id')?.value;
   const newLedgerName = document.getElementById('f_new_ledger_name')?.value.trim();
   const exceptionChecked = document.getElementById('f_ledger_exception')?.checked;
@@ -2323,33 +2340,41 @@ async function loadMasters() {
 
 async function markLedgerCreated(reqId) {
   if (!canManageMasters() && currentUserProfile?.role !== 'bidmanager') { toast('Admin or Bid Manager access required', 'error'); return; }
-  const reqSnap = await db.collection('ledger_requests').doc(reqId).get();
-  if (!reqSnap.exists) return;
-  const req = reqSnap.data();
-  const finalName = prompt('Confirm the final ledger name as created by Accounts/Finance:', req.requested_ledger_name || '');
-  if (!finalName || !finalName.trim()) return;
-  const name = finalName.trim();
+  try {
+    const reqSnap = await db.collection('ledger_requests').doc(reqId).get();
+    if (!reqSnap.exists) { toast('Ledger request no longer exists', 'error'); return; }
+    const req = reqSnap.data();
+    const finalName = prompt('Confirm the final ledger name as created by Accounts/Finance:', req.requested_ledger_name || '');
+    if (!finalName || !finalName.trim()) return;
+    const name = finalName.trim();
 
-  await db.collection('ledgers').add({ name, client_name: req.customer_name || '', branch_code: req.branch_code || '', active: true });
-  await db.collection('ledger_requests').doc(reqId).update({
-    status: 'Completed', completed_by: currentUser.displayName || currentUser.email, completed_at: new Date().toISOString(), final_ledger_name: name
-  });
-
-  if (req.tender_id) {
-    const tSnap = await db.collection('tenders').doc(req.tender_id).get();
-    const prevHistory = tSnap.exists ? (tSnap.data().status_history || []) : [];
-    await db.collection('tenders').doc(req.tender_id).update({
-      ledger_name: name,
-      ledger_status: 'Completed',
-      status_history: [{ action: 'Ledger Completed by Accounts/Finance', by: currentUser.displayName || currentUser.email, at: new Date().toISOString() }, ...prevHistory].slice(0, 50)
+    await db.collection('ledgers').add({ name, client_name: req.customer_name || '', branch_code: req.branch_code || '', active: true });
+    await db.collection('ledger_requests').doc(reqId).update({
+      status: 'Completed', completed_by: currentUser.displayName || currentUser.email, completed_at: new Date().toISOString(), final_ledger_name: name
     });
+
+    if (req.tender_id) {
+      const tSnap = await db.collection('tenders').doc(req.tender_id).get();
+      if (tSnap.exists) {
+        const prevHistory = tSnap.data().status_history || [];
+        await db.collection('tenders').doc(req.tender_id).update({
+          ledger_name: name,
+          ledger_status: 'Completed',
+          status_history: [{ action: 'Ledger Completed by Accounts/Finance', by: currentUser.displayName || currentUser.email, at: new Date().toISOString() }, ...prevHistory].slice(0, 50)
+        });
+      } else {
+        toast('Ledger created, but its linked tender no longer exists — nothing to update there', 'info');
+      }
+    }
+    toast('Ledger created and linked to the tender', 'success');
+    loadMasters();
+    loadLedgersIntoSelects();
+    await loadTenders();
+    renderList();
+    renderDashboard();
+  } catch (e) {
+    toast('Error resolving ledger request: ' + e.message, 'error');
   }
-  toast('Ledger created and linked to the tender', 'success');
-  loadMasters();
-  loadLedgersIntoSelects();
-  await loadTenders();
-  renderList();
-  renderDashboard();
 }
 
 async function updateUserRole(uid, role) {

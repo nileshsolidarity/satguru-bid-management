@@ -174,6 +174,12 @@
     .badge-overdue { background: #fee2e2; color: #991b1b; }
     .badge-disqualified { background: #fce7f3; color: #9d174d; }
     .badge-ledger-pending { background: #fee2e2; color: #991b1b; }
+    .badge-tsr-notgenerated { background: #f3f4f6; color: #374151; }
+    .badge-tsr-generated { background: #dbeafe; color: #1d4ed8; }
+    .badge-tsr-sent { background: #e0e7ff; color: #4338ca; }
+    .badge-tsr-returnpending { background: #fef9c3; color: #854d0e; }
+    .badge-tsr-escalated { background: #fee2e2; color: #991b1b; }
+    .badge-tsr-received { background: #dcfce7; color: #15803d; }
 
     /* Filter bar */
     .filter-bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
@@ -349,6 +355,7 @@
     <button class="tab-btn" id="tab-btn-form" style="display:none" onclick="switchTab('form')">Edit Tender</button>
     <button class="tab-btn" onclick="switchTab('masters')">Masters</button>
     <button class="tab-btn" onclick="switchTab('reports')">Reports</button>
+    <button class="tab-btn" onclick="switchTab('tsr')">Monthly TSR</button>
     <button class="tab-btn" onclick="switchTab('import')">Import Excel</button>
   </div>
 
@@ -367,6 +374,7 @@
       <div class="stat-card blue"><div class="stat-label">Total Value (USD)</div><div class="stat-val" id="statValue">—</div><div class="stat-sub">Potential amount</div></div>
       <div class="stat-card red"><div class="stat-label">Ledger Pending</div><div class="stat-val" id="statLedgerPending">—</div><div class="stat-sub">Won, not yet closed</div></div>
       <div class="stat-card orange"><div class="stat-label">Validity Expiring</div><div class="stat-val" id="statValidityExpiring">—</div><div class="stat-sub">≤15 days, result awaited</div></div>
+      <div class="stat-card red"><div class="stat-label">TSR Pending</div><div class="stat-val" id="statTsrPending">—</div><div class="stat-sub">Not generated, from the 29th</div></div>
     </div>
 
     <!-- Branch-wise summary -->
@@ -400,11 +408,24 @@
     </div>
 
     <!-- Bid validity expiring -->
-    <div class="card">
+    <div class="card" style="margin-bottom:20px">
       <div class="card-header"><div class="card-title">📄 Bid Validity — Expiring Soon</div></div>
       <div class="table-wrap" style="border:none;border-radius:0">
         <table><thead><tr><th>Tender ID</th><th>Client</th><th>Branch</th><th>Submitted</th><th>Validity Expiry</th><th>Days Left</th><th>Marketing SPOC</th></tr></thead>
         <tbody id="dashValidityBody"><tr><td colspan="7"><div class="loading"><span class="spinner"></span>Loading...</div></td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Monthly TSR status -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">📋 Monthly TSR — Branch Status</div>
+        <button class="btn btn-outline btn-sm" onclick="switchTab('tsr')">Open TSR Tab</button>
+      </div>
+      <div class="table-wrap" style="border:none;border-radius:0">
+        <table><thead><tr><th>Branch</th><th>Status</th><th>Sent</th><th>Return Due</th><th>Received</th></tr></thead>
+        <tbody id="dashTsrBody"><tr><td colspan="5"><div class="loading"><span class="spinner"></span>Loading...</div></td></tr></tbody>
         </table>
       </div>
     </div>
@@ -1068,6 +1089,45 @@
     </div>
   </div>
 
+  <!-- ── MONTHLY TSR ── -->
+  <div id="tab-tsr" class="tab-content">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px">
+      <div>
+        <h2 style="font-size:18px;font-weight:700">Monthly Tender Status Report</h2>
+        <p style="font-size:12px;color:var(--muted);margin-top:4px">Generate a branch-wise TSR each month, track when it's sent, and follow up until the branch returns it.</p>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <input type="month" id="tsrPeriod" class="form-control" onchange="renderTsrTab()"/>
+        <button class="btn btn-primary btn-sm" onclick="generateAllMissingTsr()">Generate All Missing</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Branch</th><th>Tenders</th><th>Status</th><th>Generated</th>
+          <th>Sent</th><th>Return Due</th><th>Received</th><th>Ver.</th><th>Actions</th>
+        </tr></thead>
+        <tbody id="tsrBody">
+          <tr><td colspan="9"><div class="loading"><span class="spinner"></span>Loading...</div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- TSR send/receive modal -->
+  <div id="tsrModal" style="display:none">
+    <div class="modal-overlay" onclick="closeTsrModal()">
+      <div class="modal" onclick="event.stopPropagation()">
+        <h3 id="tsrModalTitle">Record TSR</h3>
+        <div id="tsrModalBody"></div>
+        <div class="modal-actions">
+          <button class="btn btn-outline" onclick="closeTsrModal()">Cancel</button>
+          <button class="btn btn-primary" onclick="saveTsrModal()">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
 <!-- Master modal -->
 <div id="masterModal" style="display:none">
   <div class="modal-overlay" onclick="closeMasterModal()">
@@ -1242,6 +1302,7 @@ async function loadAllData() {
   await loadBranchesIntoSelects();
   await loadLedgersIntoSelects();
   loadMasters();
+  refreshDashboardTsr();
   // If came from portal tracker, open new tender form pre-filled
   if (new URLSearchParams(location.search).has('quick') && window._prefillData) {
     openNewTender();
@@ -1422,6 +1483,11 @@ function switchTab(name) {
   if (name === 'list') renderList();
   if (name === 'masters') loadMasters();
   if (name === 'reports') populateReportBranchFilter();
+  if (name === 'tsr') {
+    const periodEl = document.getElementById('tsrPeriod');
+    if (periodEl && !periodEl.value) periodEl.value = new Date().toISOString().slice(0, 7);
+    renderTsrTab();
+  }
 }
 
 // ── Dashboard ─────────────────────────────────────────────────
@@ -2090,6 +2156,12 @@ function calcContractEnd() {
   }
 }
 
+function addDaysToDateStr(dateStr, days) {
+  const d = new Date(dateStr);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 const DEFAULT_BID_VALIDITY_DAYS = 90;
 function calcBidValidityExpiry() {
   const expiryEl = document.getElementById('f_bid_validity_expiry');
@@ -2103,9 +2175,7 @@ function calcBidValidityExpiry() {
   }
   const daysInput = document.getElementById('f_bid_validity_days')?.value;
   const days = daysInput ? parseInt(daysInput, 10) : DEFAULT_BID_VALIDITY_DAYS;
-  const d = new Date(submissionDate);
-  d.setDate(d.getDate() + days);
-  expiryEl.value = d.toISOString().slice(0, 10);
+  expiryEl.value = addDaysToDateStr(submissionDate, days);
   if (note) note.textContent = daysInput ? '' : `Using the default ${DEFAULT_BID_VALIDITY_DAYS} days — no validity period was specified.`;
 }
 
@@ -2738,6 +2808,231 @@ function exportReport() {
   a.download = 'report_' + (document.getElementById('rptType').value) + '_' + new Date().toISOString().slice(0,10) + '.csv';
   a.click();
   toast('Report exported', 'success');
+}
+
+// ── Monthly TSR ───────────────────────────────────────────────
+// Grace period (days) allowed after Return Due Date before a pending TSR
+// escalates from the branch to the Regional Manager (§9).
+const TSR_ESCALATE_GRACE_DAYS = 3;
+let tsrReports = [];
+
+// True from the 2nd-to-last day of the month through month-end — the
+// generation window the requirement anchors to "the 29th", generalized so a
+// 28-day February still gets its window instead of never reaching day 29.
+function isTsrGenerationWindow() {
+  const now = new Date();
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  return now.getDate() >= daysInMonth - 1;
+}
+
+function tsrStatus(r) {
+  if (!r) return 'Not Generated';
+  if (r.received_date) return 'Received';
+  if (!r.sent_date) return 'Generated';
+  if (!r.return_due_date) return 'Sent';
+  const today = new Date().toISOString().slice(0, 10);
+  if (today <= r.return_due_date) return 'Sent';
+  const escalateAfter = addDaysToDateStr(r.return_due_date, TSR_ESCALATE_GRACE_DAYS);
+  return today > escalateAfter ? 'Escalated' : 'Return Pending';
+}
+
+function tsrBadge(status) {
+  const map = {
+    'Not Generated': 'badge-tsr-notgenerated',
+    'Generated': 'badge-tsr-generated',
+    'Sent': 'badge-tsr-sent',
+    'Return Pending': 'badge-tsr-returnpending',
+    'Escalated': 'badge-tsr-escalated',
+    'Received': 'badge-tsr-received',
+  };
+  return `<span class="badge ${map[status] || 'badge-new'}">${status}</span>`;
+}
+
+// reportsList lets the dashboard compute rows for the current month without
+// disturbing tsrReports, which tracks whatever period the TSR tab has open.
+function computeTsrRows(period, reportsList) {
+  const list = reportsList || tsrReports;
+  return branches.map(b => {
+    const record = list.find(r => r.id === (b.id + '_' + period));
+    const tenderCount = allTenders.filter(t => t.branch_code === b.id).length;
+    return { branch: b, record, status: tsrStatus(record), tenderCount };
+  });
+}
+
+async function loadTsrReports(period) {
+  const snap = await db.collection('tsr_reports').where('period', '==', period).get();
+  tsrReports = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+function canManageTsr() {
+  return canManageMasters() || currentUserProfile?.role === 'bidmanager';
+}
+
+function tsrActionButtons(branchCode, period, status) {
+  if (!canManageTsr()) return '—';
+  if (status === 'Not Generated') return `<button class="btn btn-outline btn-sm" onclick="generateTsr('${branchCode}','${period}')">Generate</button>`;
+  if (status === 'Generated') return `<button class="btn btn-primary btn-sm" onclick="openTsrModal('send','${branchCode}','${period}')">Mark Sent</button> <button class="btn btn-outline btn-sm" onclick="generateTsr('${branchCode}','${period}')">Regenerate</button>`;
+  if (['Sent', 'Return Pending', 'Escalated'].includes(status)) return `<button class="btn btn-success btn-sm" onclick="openTsrModal('receive','${branchCode}','${period}')">Mark Received</button>`;
+  if (status === 'Received') return `<button class="btn btn-outline btn-sm" onclick="openTsrModal('receive','${branchCode}','${period}')">Update / Re-received</button>`;
+  return '—';
+}
+
+async function renderTsrTab() {
+  const period = document.getElementById('tsrPeriod')?.value || new Date().toISOString().slice(0, 7);
+  await loadTsrReports(period);
+  const rows = computeTsrRows(period);
+  document.getElementById('tsrBody').innerHTML = rows.length ? rows.map(row => {
+    const r = row.record;
+    const versionCount = r?.version_history?.length || 0;
+    return `<tr>
+      <td><b>${esc(row.branch.id)}</b>${row.branch.city ? ' — ' + esc(row.branch.city) : ''}</td>
+      <td>${row.tenderCount}</td>
+      <td>${tsrBadge(row.status)}</td>
+      <td>${r?.generated_at ? fmt(r.generated_at.slice(0, 10)) : '—'}</td>
+      <td>${fmt(r?.sent_date)}</td>
+      <td>${fmt(r?.return_due_date)}</td>
+      <td>${fmt(r?.received_date)}</td>
+      <td>${versionCount || '—'}</td>
+      <td><div class="tbl-actions">${tsrActionButtons(row.branch.id, period, row.status)}</div></td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="9" style="padding:20px;color:var(--muted);text-align:center">No active branches configured — add one under Masters</td></tr>';
+}
+
+async function writeTsrSnapshot(branchCode, period) {
+  const snapshot = allTenders.filter(t => t.branch_code === branchCode).map(t => ({
+    tender_unique_id: t.tender_unique_id || '',
+    customer_name: t.customer_name || '',
+    work_status: t.work_status || '',
+    submission_status: t.submission_status || '',
+    tender_result_status: t.tender_result_status || '',
+    deadline: t.deadline || ''
+  }));
+  await db.collection('tsr_reports').doc(branchCode + '_' + period).set({
+    branch_code: branchCode,
+    period,
+    tender_count: snapshot.length,
+    tender_snapshot: snapshot,
+    generated_at: new Date().toISOString(),
+    generated_by: currentUser.displayName || currentUser.email
+  }, { merge: true });
+}
+
+async function generateTsr(branchCode, period) {
+  if (!canManageTsr()) { toast('Admin or Bid Manager access required', 'error'); return; }
+  try {
+    await writeTsrSnapshot(branchCode, period);
+    toast('TSR generated for ' + branchCode, 'success');
+    renderTsrTab();
+    refreshDashboardTsr();
+  } catch (e) {
+    toast('Error generating TSR: ' + e.message, 'error');
+  }
+}
+
+async function generateAllMissingTsr() {
+  if (!canManageTsr()) { toast('Admin or Bid Manager access required', 'error'); return; }
+  const period = document.getElementById('tsrPeriod')?.value || new Date().toISOString().slice(0, 7);
+  await loadTsrReports(period);
+  const missing = computeTsrRows(period).filter(row => row.status === 'Not Generated');
+  if (!missing.length) { toast('Every branch already has a TSR generated for this period', 'info'); return; }
+  try {
+    await Promise.all(missing.map(row => writeTsrSnapshot(row.branch.id, period)));
+    toast(`Generated TSR for ${missing.length} branch${missing.length > 1 ? 'es' : ''}`, 'success');
+  } catch (e) {
+    toast('Error generating TSR: ' + e.message, 'error');
+  }
+  renderTsrTab();
+  refreshDashboardTsr();
+}
+
+let tsrModalType = null;
+let tsrModalContext = null;
+
+function openTsrModal(type, branchCode, period) {
+  if (!canManageTsr()) { toast('Admin or Bid Manager access required', 'error'); return; }
+  tsrModalType = type;
+  tsrModalContext = { branchCode, period };
+  const today = new Date().toISOString().slice(0, 10);
+  if (type === 'send') {
+    document.getElementById('tsrModalTitle').textContent = 'Mark TSR Sent — ' + branchCode;
+    document.getElementById('tsrModalBody').innerHTML = `<div class="form-grid">
+      <div class="form-group"><label>Sent Date <span class="req">*</span></label><input type="date" class="form-control" id="tm_sent_date" value="${today}"/></div>
+      <div class="form-group"><label>Sent To <span class="req">*</span></label><input class="form-control" id="tm_sent_to" placeholder="Branch Marketing Manager name / email"/></div>
+      <div class="form-group full"><label>Return Due Date <span class="req">*</span></label><input type="date" class="form-control" id="tm_return_due" value="${addDaysToDateStr(today, 7)}"/></div>
+    </div>`;
+  } else {
+    document.getElementById('tsrModalTitle').textContent = 'Mark TSR Received — ' + branchCode;
+    document.getElementById('tsrModalBody').innerHTML = `<div class="form-grid">
+      <div class="form-group"><label>Received Date <span class="req">*</span></label><input type="date" class="form-control" id="tm_received_date" value="${today}"/></div>
+      <div class="form-group full"><label>Notes</label><input class="form-control" id="tm_received_note" placeholder="Version / changes noted on the returned report"/></div>
+    </div>`;
+  }
+  document.getElementById('tsrModal').style.display = 'flex';
+}
+function closeTsrModal() { document.getElementById('tsrModal').style.display = 'none'; }
+
+async function saveTsrModal() {
+  if (!canManageTsr()) { toast('Admin or Bid Manager access required', 'error'); return; }
+  const { branchCode, period } = tsrModalContext;
+  const docId = branchCode + '_' + period;
+  try {
+    if (tsrModalType === 'send') {
+      const sentDate = document.getElementById('tm_sent_date')?.value;
+      const sentTo = document.getElementById('tm_sent_to')?.value.trim();
+      const returnDue = document.getElementById('tm_return_due')?.value;
+      if (!sentDate || !sentTo || !returnDue) { toast('Sent Date, Sent To and Return Due Date are all required', 'error'); return; }
+      await db.collection('tsr_reports').doc(docId).set({
+        sent_date: sentDate, sent_to: sentTo, return_due_date: returnDue,
+        sent_by: currentUser.displayName || currentUser.email
+      }, { merge: true });
+      toast('TSR marked sent to ' + sentTo, 'success');
+    } else {
+      const receivedDate = document.getElementById('tm_received_date')?.value;
+      const note = document.getElementById('tm_received_note')?.value.trim();
+      if (!receivedDate) { toast('Received Date is required', 'error'); return; }
+      const existing = tsrReports.find(r => r.id === docId);
+      const versionHistory = [...(existing?.version_history || []), {
+        received_date: receivedDate, note, by: currentUser.displayName || currentUser.email, at: new Date().toISOString()
+      }];
+      await db.collection('tsr_reports').doc(docId).set({
+        received_date: receivedDate, received_by: currentUser.displayName || currentUser.email,
+        version_history: versionHistory
+      }, { merge: true });
+      toast('TSR marked received', 'success');
+    }
+    closeTsrModal();
+    renderTsrTab();
+    refreshDashboardTsr();
+  } catch (e) {
+    toast('Error saving: ' + e.message, 'error');
+  }
+}
+
+// Independent of tsrReports/tsrPeriod (the TSR tab's own state) so browsing
+// an older period there never leaves the dashboard showing the wrong month.
+async function refreshDashboardTsr() {
+  const period = new Date().toISOString().slice(0, 7);
+  let reportsList = [];
+  try {
+    const snap = await db.collection('tsr_reports').where('period', '==', period).get();
+    reportsList = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (e) { console.error('refreshDashboardTsr', e); }
+
+  const rows = computeTsrRows(period, reportsList);
+  const pendingEl = document.getElementById('statTsrPending');
+  if (pendingEl) pendingEl.textContent = isTsrGenerationWindow() ? rows.filter(r => r.status === 'Not Generated').length : 0;
+
+  const tbody = document.getElementById('dashTsrBody');
+  if (tbody) {
+    tbody.innerHTML = rows.length ? rows.map(row => `<tr class="row-link" onclick="switchTab('tsr')">
+        <td><b>${esc(row.branch.id)}</b></td>
+        <td>${tsrBadge(row.status)}</td>
+        <td>${fmt(row.record?.sent_date)}</td>
+        <td>${fmt(row.record?.return_due_date)}</td>
+        <td>${fmt(row.record?.received_date)}</td>
+      </tr>`).join('')
+      : '<tr><td colspan="5" style="padding:20px;color:var(--muted);text-align:center">No active branches configured</td></tr>';
+  }
 }
 
 // ── Helpers ───────────────────────────────────────────────────

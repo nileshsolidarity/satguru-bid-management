@@ -83,6 +83,30 @@
     .signout-btn { background: rgba(255,255,255,0.1); border: none; color: white; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 12px; }
     .signout-btn:hover { background: rgba(255,255,255,0.2); }
 
+    /* Deadline alerts bell */
+    .bell-wrap { position: relative; }
+    .bell-btn { position: relative; background: rgba(255,255,255,0.1); border: none; color: white; width: 36px; height: 36px; border-radius: 8px; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; }
+    .bell-btn:hover { background: rgba(255,255,255,0.2); }
+    .bell-badge { position: absolute; top: -3px; right: -3px; background: var(--danger); color: white; font-size: 10px; font-weight: 700; border-radius: 10px; min-width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; padding: 0 4px; border: 2px solid var(--navy2); }
+    .alerts-panel { position: absolute; top: 46px; right: 0; width: 360px; max-height: 440px; overflow-y: auto; background: white; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.28); z-index: 300; color: var(--text); }
+    .alerts-head { padding: 14px 16px; font-size: 13px; font-weight: 700; border-bottom: 1px solid var(--border); color: var(--navy); }
+    .alerts-empty { padding: 32px 16px; text-align: center; font-size: 13px; color: var(--muted); }
+    .alert-row { display: flex; align-items: center; gap: 10px; padding: 12px 16px; cursor: pointer; border-bottom: 1px solid var(--border); }
+    .alert-row:last-child { border-bottom: none; }
+    .alert-row:hover { background: #f8fafc; }
+    .alert-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+    .alert-dot.level-first, .alert-dot.level-daily { background: var(--info); }
+    .alert-dot.level-priority, .alert-dot.level-urgent { background: var(--warning); }
+    .alert-dot.level-critical, .alert-dot.level-escalation { background: var(--danger); }
+    .alert-body { flex: 1; min-width: 0; }
+    .alert-title { font-size: 13px; font-weight: 700; }
+    .alert-sub { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .alert-days { font-size: 11px; font-weight: 700; color: var(--danger); flex-shrink: 0; }
+
+    .badge-alert-first, .badge-alert-daily { background: #dbeafe; color: #1d4ed8; }
+    .badge-alert-priority, .badge-alert-urgent { background: #fef9c3; color: #854d0e; }
+    .badge-alert-critical, .badge-alert-escalation { background: #fee2e2; color: #991b1b; }
+
     /* Tabs */
     .tabs-bar {
       background: var(--navy2); display: flex; gap: 2px; padding: 0 28px;
@@ -299,6 +323,12 @@
     <div class="header-right">
       <a href="index.html" class="home-btn">← Portal Tracker</a>
       <a href="bid-prep.html" class="home-btn">✨ Bid Prep</a>
+      <div class="bell-wrap">
+        <button class="bell-btn" id="bellBtn" onclick="toggleAlertsPanel(event)" title="Deadline Alerts">
+          🔔<span class="bell-badge" id="bellBadge" style="display:none">0</span>
+        </button>
+        <div class="alerts-panel" id="alertsPanel" style="display:none"></div>
+      </div>
       <div class="user-chip">
         <div class="user-avatar" id="userAvatar">?</div>
         <div>
@@ -348,10 +378,10 @@
 
     <!-- Overdue / Due soon table -->
     <div class="card" style="margin-bottom:20px">
-      <div class="card-header"><div class="card-title">⚠ Overdue / Due This Week</div></div>
+      <div class="card-header"><div class="card-title">⚠ Deadline Alerts — Overdue / Due This Week</div></div>
       <div class="table-wrap" style="border:none;border-radius:0">
-        <table><thead><tr><th>Tender ID</th><th>Client</th><th>Branch</th><th>Deadline</th><th>Days Left</th><th>Assigned To</th><th>Work Status</th></tr></thead>
-        <tbody id="dashOverdueBody"><tr><td colspan="7"><div class="loading"><span class="spinner"></span>Loading...</div></td></tr></tbody>
+        <table><thead><tr><th>Tender ID</th><th>Client</th><th>Branch</th><th>Deadline</th><th>Days Left</th><th>Alert</th><th>Assigned To</th><th>Work Status</th></tr></thead>
+        <tbody id="dashOverdueBody"><tr><td colspan="8"><div class="loading"><span class="spinner"></span>Loading...</div></td></tr></tbody>
         </table>
       </div>
     </div>
@@ -510,7 +540,7 @@
             </div>
             <div class="form-group">
               <label>Branch Code <span class="req">*</span></label>
-              <select class="form-control" id="f_branch_code" onchange="loadMarketingPersons()">
+              <select class="form-control" id="f_branch_code" onchange="onBranchChange()">
                 <option value="">— Select Branch —</option>
               </select>
             </div>
@@ -520,6 +550,15 @@
                 <option value="">— Select —</option>
                 <option>STTS</option><option>STC</option><option>STL</option><option>Other</option>
               </select>
+            </div>
+            <div class="form-group">
+              <label>Legal Entity (Auto)</label>
+              <input class="form-control" id="f_legal_entity" readonly placeholder="Auto-fills from selected branch"/>
+              <span class="field-note" id="legalEntityNote"></span>
+            </div>
+            <div class="form-group">
+              <label>Region (Auto)</label>
+              <input class="form-control" id="f_region" readonly placeholder="Auto-fills from selected branch"/>
             </div>
           </div>
         </div>
@@ -730,7 +769,7 @@
           <button class="btn btn-primary btn-sm" onclick="openMasterModal('branch')">+ Add</button>
         </div>
         <div class="card-body" style="padding:0">
-          <table><thead><tr><th>Code</th><th>City</th><th>Country</th><th>Active</th><th></th></tr></thead>
+          <table><thead><tr><th>Code</th><th>City</th><th>Country</th><th>Legal Entity</th><th>Region</th><th>Currency</th><th>Active</th><th></th></tr></thead>
           <tbody id="masterBranches"></tbody></table>
         </div>
       </div>
@@ -1068,6 +1107,8 @@ async function loadAllData() {
   await loadTenders();
   renderDashboard();
   renderList();
+  renderAlertsPanel();
+  maybeShowAlertPopup();
   await loadBranchesIntoSelects();
   loadMasters();
   // If came from portal tracker, open new tender form pre-filled
@@ -1094,6 +1135,108 @@ function calcDaysLeftVal(deadline) {
   const d = new Date(deadline);
   const today = new Date(); today.setHours(0,0,0,0); d.setHours(0,0,0,0);
   return Math.ceil((d - today) / 86400000);
+}
+
+// ── Deadline Alerts ───────────────────────────────────────────
+// Escalation ladder per requirements: 5/4d assignee only, 3d +Team Lead,
+// 2/1d +Team Lead +Manager, deadline day/overdue +branch too.
+const ALERT_LADDER = {
+  5: { key:'first',      label:'First Reminder',  tier:1 },
+  4: { key:'daily',      label:'Daily Reminder',  tier:1 },
+  3: { key:'priority',   label:'Priority',        tier:2 },
+  2: { key:'urgent',     label:'Urgent',          tier:3 },
+  1: { key:'critical',   label:'Critical',        tier:3 },
+};
+function alertLevelFor(daysLeft) {
+  if (daysLeft === null || daysLeft === undefined) return null;
+  if (daysLeft <= 0) return { key:'escalation', label:'Escalation', tier:4 };
+  return ALERT_LADDER[daysLeft] || null;
+}
+function activeAlerts() {
+  return allTenders
+    .filter(t => t.deadline && t.submission_status !== 'Submitted' && t.work_status !== 'Cancelled')
+    .map(t => ({ t, level: alertLevelFor(t.days_left) }))
+    .filter(a => a.level);
+}
+function isAlertRecipient(t, level) {
+  if (!currentUserProfile) return false;
+  const me = (currentUser?.displayName || currentUser?.email || '').toLowerCase();
+  if (me && (t.assigned_to || '').toLowerCase() === me) return true;
+  const role = currentUserProfile.role;
+  // Team Lead / Manager get copied in from Priority (3 days) onward, for all tenders
+  if (level.tier >= 2 && ['admin', 'bidmanager'].includes(role)) return true;
+  // The relevant branch is escalated to on deadline day / once overdue
+  if (level.tier >= 4 && ['branchrep', 'branchmanager'].includes(role) && t.branch_code === currentUserProfile.branch_code) return true;
+  return false;
+}
+function getMyAlerts() {
+  return activeAlerts().filter(a => isAlertRecipient(a.t, a.level)).sort((a, b) => a.t.days_left - b.t.days_left);
+}
+function alertDaysLabel(n) {
+  return n < 0 ? Math.abs(n) + 'd overdue' : n === 0 ? 'Today' : n + 'd';
+}
+function renderAlertsPanel() {
+  const badge = document.getElementById('bellBadge');
+  const panel = document.getElementById('alertsPanel');
+  if (!badge || !panel) return;
+  const mine = getMyAlerts();
+  badge.style.display = mine.length ? 'flex' : 'none';
+  badge.textContent = mine.length;
+  panel.innerHTML = mine.length
+    ? `<div class="alerts-head">Deadline Alerts (${mine.length})</div>` + mine.map(a => `
+        <div class="alert-row" onclick="closeAlertsPanel();openEditTender('${a.t.id}')">
+          <span class="alert-dot level-${a.level.key}"></span>
+          <div class="alert-body">
+            <div class="alert-title">${esc(a.t.tender_unique_id || a.t.customer_name)}</div>
+            <div class="alert-sub">${esc(a.t.customer_name)} · ${esc(a.t.branch_code || '')} · ${a.level.label}</div>
+          </div>
+          <div class="alert-days">${alertDaysLabel(a.t.days_left)}</div>
+        </div>`).join('')
+    : `<div class="alerts-empty">No deadline alerts 🎉</div>`;
+}
+function toggleAlertsPanel(e) {
+  if (e) e.stopPropagation();
+  const panel = document.getElementById('alertsPanel');
+  if (!panel) return;
+  const show = panel.style.display === 'none';
+  if (show) renderAlertsPanel();
+  panel.style.display = show ? 'block' : 'none';
+}
+function closeAlertsPanel() {
+  const panel = document.getElementById('alertsPanel');
+  if (panel) panel.style.display = 'none';
+}
+document.addEventListener('click', e => {
+  const panel = document.getElementById('alertsPanel');
+  const bell = document.getElementById('bellBtn');
+  if (panel && panel.style.display !== 'none' && !panel.contains(e.target) && e.target !== bell) closeAlertsPanel();
+});
+
+function maybeShowAlertPopup() {
+  const urgent = getMyAlerts().filter(a => a.level.tier >= 3); // Urgent / Critical / Escalation
+  if (!urgent.length) return;
+  const seenKey = 'satguru_alerts_seen_' + (currentUser?.uid || '') + '_' + new Date().toISOString().slice(0, 10);
+  if (localStorage.getItem(seenKey)) return;
+  try { localStorage.setItem(seenKey, '1'); } catch (e) {}
+  showAlertPopup(urgent);
+}
+function showAlertPopup(items) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.onclick = () => overlay.remove();
+  overlay.innerHTML = `<div class="modal" onclick="event.stopPropagation()">
+    <h3>⏰ Deadline Alerts</h3>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:14px">${items.length} tender${items.length > 1 ? 's need' : ' needs'} your attention.</p>
+    <div style="display:flex;flex-direction:column;border:1px solid var(--border);border-radius:8px;max-height:320px;overflow-y:auto">
+      ${items.map(a => `<div class="alert-row" onclick="this.closest('.modal-overlay').remove();openEditTender('${a.t.id}')">
+        <span class="alert-dot level-${a.level.key}"></span>
+        <div class="alert-body"><div class="alert-title">${esc(a.t.tender_unique_id || a.t.customer_name)}</div><div class="alert-sub">${esc(a.t.customer_name)} · ${a.level.label}</div></div>
+        <div class="alert-days">${alertDaysLabel(a.t.days_left)}</div>
+      </div>`).join('')}
+    </div>
+    <div class="modal-actions"><button class="btn btn-primary" onclick="this.closest('.modal-overlay').remove()">Got it</button></div>
+  </div>`;
+  document.body.appendChild(overlay);
 }
 
 // ── Tabs ──────────────────────────────────────────────────────
@@ -1180,10 +1323,11 @@ function renderDashboard() {
         <td>${esc(t.branch_code)}</td>
         <td>${fmt(t.deadline)}</td>
         <td>${daysPill(t.days_left)}</td>
+        <td>${alertBadge(alertLevelFor(t.days_left))}</td>
         <td>${esc(t.assigned_to)}</td>
         <td>${workBadge(t.work_status)}</td>
       </tr>`).join('')
-    : '<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">✅</div><h3>No overdue or urgent tenders</h3></div></td></tr>';
+    : '<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">✅</div><h3>No overdue or urgent tenders</h3></div></td></tr>';
 
   // Result awaited table
   const awaitedList = allTenders.filter(t => t.tender_result_status === 'Result Awaited').slice(0,10);
@@ -1278,7 +1422,7 @@ function openNewTender() {
   // Pre-fill branch for branch rep
   if (currentUserProfile?.branch_code) {
     document.getElementById('f_branch_code').value = currentUserProfile.branch_code;
-    loadMarketingPersons();
+    onBranchChange();
   }
 
   document.getElementById('tab-btn-form').style.display = 'none';
@@ -1315,8 +1459,9 @@ async function openEditTender(id) {
     if (el && t[f] !== undefined && t[f] !== null) el.value = t[f];
   });
 
-  // Marketing persons for branch
+  // Marketing persons + legal entity for branch
   await loadMarketingPersons();
+  fillLegalEntity(t.branch_code || '');
   if (t.marketing_person_spoc_id) document.getElementById('f_marketing_person_spoc_id').value = t.marketing_person_spoc_id;
 
   // Days left recalc
@@ -1368,6 +1513,10 @@ async function saveTender() {
     if (!getString('submission_date')) { toast('Date of Submission is required when status is Submitted', 'error'); return; }
     if (!getString('submission_type')) { toast('Submission Type is required when status is Submitted', 'error'); return; }
     if (!getString('submission_route')) { toast('Submission Route is required when status is Submitted', 'error'); return; }
+    if (getString('branch_code') && !getString('legal_entity')) {
+      toast('No legal entity is mapped for this branch. Ask Admin to update the Branch-Entity Master before final submission.', 'error');
+      return;
+    }
   }
 
   // Result validation
@@ -1407,6 +1556,8 @@ async function saveTender() {
     potential_amount_usd: getNum('potential_amount_usd'),
     branch_code: getString('branch_code'),
     domain_name: getString('domain_name'),
+    legal_entity: getString('legal_entity'),
+    region: getString('region'),
     assigned_to: getString('assigned_to'),
     deadline: getString('deadline'),
     days_left: calcDaysLeftVal(getString('deadline')),
@@ -1680,6 +1831,29 @@ async function loadBranchesIntoSelects() {
   });
 }
 
+function onBranchChange() {
+  fillLegalEntity(document.getElementById('f_branch_code')?.value || '');
+  loadMarketingPersons();
+}
+
+function fillLegalEntity(branchCode) {
+  const entityEl = document.getElementById('f_legal_entity');
+  const regionEl = document.getElementById('f_region');
+  const note = document.getElementById('legalEntityNote');
+  if (!entityEl || !regionEl) return;
+  if (!branchCode) { entityEl.value = ''; regionEl.value = ''; if (note) note.textContent = ''; return; }
+  const b = branches.find(x => x.id === branchCode);
+  if (b && b.legal_entity) {
+    entityEl.value = b.legal_entity;
+    regionEl.value = b.region || '';
+    if (note) { note.textContent = ''; note.style.color = ''; }
+  } else {
+    entityEl.value = '';
+    regionEl.value = b?.region || '';
+    if (note) { note.textContent = '⚠ No legal entity mapped for this branch — ask Admin to update the Branch-Entity Master before submission.'; note.style.color = 'var(--danger)'; }
+  }
+}
+
 async function loadMarketingPersons() {
   const branch = document.getElementById('f_branch_code')?.value;
   const sel = document.getElementById('f_marketing_person_spoc_id');
@@ -1705,10 +1879,12 @@ async function loadMasters() {
     const b = d.data();
     return `<tr>
       <td><b>${d.id}</b></td><td>${b.city||''}</td><td>${b.country||''}</td>
+      <td>${b.legal_entity ? esc(b.legal_entity) : '<span style="color:var(--danger)">Not mapped</span>'}</td>
+      <td>${b.region||''}</td><td>${b.currency||''}</td>
       <td>${b.active ? '✅' : '❌'}</td>
       <td><button class="btn btn-outline btn-sm" onclick="toggleActive('branches','${d.id}',${b.active})">Toggle</button></td>
     </tr>`;
-  }).join('') || '<tr><td colspan="5" style="color:var(--muted);padding:20px">No branches yet</td></tr>';
+  }).join('') || '<tr><td colspan="8" style="color:var(--muted);padding:20px">No branches yet</td></tr>';
 
   // Marketing persons
   const mpSnap = await db.collection('marketing_persons').get();
@@ -1775,7 +1951,7 @@ function openMasterModal(type) {
   const titles = { branch: 'Add Branch', marketing: 'Add Marketing Person', client: 'Add Client' };
   document.getElementById('masterModalTitle').textContent = titles[type] || 'Add Record';
   if (type === 'branch') {
-    document.getElementById('masterModalBody').innerHTML = `<div class="form-grid"><div class="form-group"><label>Branch Code <span class="req">*</span></label><input class="form-control" id="mm_id" placeholder="e.g. DXB"/></div><div class="form-group"><label>City</label><input class="form-control" id="mm_city" placeholder="Dubai"/></div><div class="form-group"><label>Country</label><input class="form-control" id="mm_country" placeholder="UAE"/></div></div>`;
+    document.getElementById('masterModalBody').innerHTML = `<div class="form-grid"><div class="form-group"><label>Branch Code <span class="req">*</span></label><input class="form-control" id="mm_id" placeholder="e.g. DXB"/></div><div class="form-group"><label>City</label><input class="form-control" id="mm_city" placeholder="Dubai"/></div><div class="form-group"><label>Country</label><input class="form-control" id="mm_country" placeholder="UAE"/></div><div class="form-group"><label>Legal Entity <span class="req">*</span></label><input class="form-control" id="mm_legal_entity" placeholder="Approved registered entity name"/></div><div class="form-group"><label>Region</label><input class="form-control" id="mm_region" placeholder="e.g. East Africa"/></div><div class="form-group"><label>Currency</label><input class="form-control" id="mm_currency" placeholder="e.g. USD"/></div></div><p style="font-size:11px;color:var(--muted);margin-top:10px">Legal Entity auto-fills on the tender form once this branch is selected, and is locked for normal users.</p>`;
   } else if (type === 'client') {
     document.getElementById('masterModalBody').innerHTML = `<div class="form-grid"><div class="form-group"><label>Client Name <span class="req">*</span></label><input class="form-control" id="mm_name" placeholder="Client / Company name"/></div><div class="form-group"><label>Global Name</label><input class="form-control" id="mm_global" placeholder="Parent company (if any)"/></div><div class="form-group"><label>Country</label><input class="form-control" id="mm_country" placeholder="Country"/></div><div class="form-group"><label>Industry</label><input class="form-control" id="mm_industry" placeholder="e.g. Government, NGO, Corporate"/></div></div>`;
   } else {
@@ -1790,11 +1966,12 @@ async function saveMasterRecord() {
   if (masterModalType === 'branch') {
     const id = document.getElementById('mm_id')?.value.trim().toUpperCase();
     if (!id) { toast('Branch code required', 'error'); return; }
-    await db.collection('branches').doc(id).set({
-      city: document.getElementById('mm_city')?.value.trim() || '',
-      country: document.getElementById('mm_country')?.value.trim() || '',
-      active: true
+    const branchData = { active: true };
+    [['mm_city','city'],['mm_country','country'],['mm_legal_entity','legal_entity'],['mm_region','region'],['mm_currency','currency']].forEach(([elId, field]) => {
+      const v = document.getElementById(elId)?.value.trim();
+      if (v) branchData[field] = v; // blank fields leave any existing value untouched
     });
+    await db.collection('branches').doc(id).set(branchData, { merge: true });
     toast('Branch added: ' + id, 'success');
   } else if (masterModalType === 'client') {
     const name = document.getElementById('mm_name')?.value.trim();
@@ -1825,9 +2002,9 @@ async function saveMasterRecord() {
 
 // ── Export ────────────────────────────────────────────────────
 function exportExcel() {
-  const headers = ['Tender ID','Date Created','Client','Branch','Bid Type','Deadline','Days Left','Work Status','Submission Status','Result Status','Assigned To','Potential Amount USD','Description'];
+  const headers = ['Tender ID','Date Created','Client','Branch','Legal Entity','Bid Type','Deadline','Days Left','Work Status','Submission Status','Result Status','Assigned To','Potential Amount USD','Description'];
   const rows = allTenders.map(t => [
-    t.tender_unique_id||'', t.date_created||'', t.customer_name||'', t.branch_code||'',
+    t.tender_unique_id||'', t.date_created||'', t.customer_name||'', t.branch_code||'', t.legal_entity||'',
     t.bid_type||'', t.deadline||'', t.days_left||'', t.work_status||'',
     t.submission_status||'', t.tender_result_status||'', t.assigned_to||'',
     t.potential_amount_usd||'', (t.bid_description||'').slice(0,100)
@@ -2129,6 +2306,10 @@ function subBadge(s) {
 function resultBadge(s) {
   const map = { 'Result Awaited':'badge-awaited','Won':'badge-won','Lost':'badge-lost','Cancelled':'badge-cancelled','Disqualified':'badge-disqualified','Not Participated':'badge-cancelled' };
   return `<span class="badge ${map[s]||'badge-new'}">${s||'—'}</span>`;
+}
+function alertBadge(level) {
+  if (!level) return '<span style="color:var(--muted)">—</span>';
+  return `<span class="badge badge-alert-${level.key}">${level.label}</span>`;
 }
 
 function toast(msg, type = 'info') {

@@ -607,6 +607,7 @@
             <div class="form-group">
               <label>Assigned To <span class="req">*</span></label>
               <input class="form-control" id="f_assigned_to" placeholder="Name of person responsible"/>
+              <span class="field-note" id="assignedToNote"></span>
             </div>
             <div class="form-group">
               <label>Deadline <span class="req">*</span></label>
@@ -1291,6 +1292,17 @@ function canEdit(tender) {
   return false;
 }
 function canManageMasters() { return currentUserProfile?.role === 'admin'; }
+// Only Team Lead / Manager (admin, bidmanager) may reassign a tender away from its creator — everyone else gets it auto-assigned and locked.
+function canReassignTender() { return ['admin', 'bidmanager'].includes(currentUserProfile?.role); }
+
+function updateAssignedToLock() {
+  const el = document.getElementById('f_assigned_to');
+  const note = document.getElementById('assignedToNote');
+  if (!el) return;
+  const locked = !canReassignTender();
+  el.readOnly = locked;
+  if (note) note.textContent = locked ? 'Auto-assigned on creation — only a Team Lead, Manager or Admin can reassign.' : '';
+}
 
 // ── Data loading ──────────────────────────────────────────────
 async function loadAllData() {
@@ -1672,6 +1684,9 @@ function openNewTender() {
   document.getElementById('formTenderId').textContent = 'ID will be auto-generated on save';
   document.getElementById('f_date_created').value = new Date().toISOString().slice(0,10);
   document.getElementById('f_created_by_name').value = currentUser.displayName || currentUser.email;
+  // The creator is assigned automatically; only a Team Lead/Manager/Admin may reassign.
+  document.getElementById('f_assigned_to').value = currentUser.displayName || currentUser.email;
+  updateAssignedToLock();
   calcBidValidityExpiry();
 
   // Pre-fill branch for branch rep
@@ -1717,6 +1732,7 @@ async function openEditTender(id) {
     const el = document.getElementById('f_' + f);
     if (el && t[f] !== undefined && t[f] !== null) el.value = t[f];
   });
+  updateAssignedToLock();
 
   // Marketing persons + legal entity for branch
   await loadMarketingPersons();
@@ -1859,6 +1875,15 @@ async function saveTender() {
     }
   }
 
+  // Reassignment is UI-locked to Team Lead/Manager/Admin (updateAssignedToLock);
+  // re-derive it here too so a tampered/unlocked field can't sneak a reassignment past that rule.
+  let resolvedAssignedTo = getString('assigned_to');
+  if (!canReassignTender()) {
+    resolvedAssignedTo = editingTenderId
+      ? (allTenders.find(t => t.id === editingTenderId)?.assigned_to || resolvedAssignedTo)
+      : (currentUser.displayName || currentUser.email);
+  }
+
   const data = {
     tender_source: getString('tender_source'),
     mode: getString('mode'),
@@ -1875,7 +1900,7 @@ async function saveTender() {
     domain_name: getString('domain_name'),
     legal_entity: getString('legal_entity'),
     region: getString('region'),
-    assigned_to: getString('assigned_to'),
+    assigned_to: resolvedAssignedTo,
     deadline: getString('deadline'),
     days_left: calcDaysLeftVal(getString('deadline')),
     start_date: getString('start_date'),

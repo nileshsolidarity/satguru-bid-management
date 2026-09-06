@@ -703,12 +703,16 @@
               <input type="date" class="form-control" id="f_submission_date" onchange="calcBidValidityExpiry()"/>
             </div>
             <div class="form-group">
+              <label>Time of Submission</label>
+              <input type="time" class="form-control" id="f_submission_time"/>
+            </div>
+            <div class="form-group">
               <label>Submitted To</label>
               <input class="form-control" id="f_submitted_to" placeholder="Person or authority"/>
             </div>
             <div class="form-group">
               <label>Submission Type</label>
-              <select class="form-control" id="f_submission_type">
+              <select class="form-control" id="f_submission_type" onchange="onSubmissionTypeChange()">
                 <option value="">— Select —</option>
                 <option>Email</option><option>Portal</option><option>Physical</option><option>Courier</option><option>Upload Link</option>
               </select>
@@ -728,6 +732,51 @@
             <div class="form-group">
               <label>Submitted By</label>
               <input class="form-control" id="f_submitted_by" placeholder="Name / user who submitted"/>
+            </div>
+          </div>
+
+          <!-- Physical / Courier submission -->
+          <div class="form-grid submission-method-block" id="fg_physical_submission" style="display:none;margin-bottom:24px">
+            <div class="form-group">
+              <label>Delivery Location <span class="req">*</span></label>
+              <input class="form-control" id="f_physical_delivery_location" placeholder="Address the bid was delivered to"/>
+            </div>
+            <div class="form-group">
+              <label>Receiver / Acknowledgement</label>
+              <input class="form-control" id="f_physical_receiver_ack" placeholder="Name of receiver, or acknowledgement reference"/>
+            </div>
+            <div class="form-group full">
+              <label>Courier / Hand-Delivery Proof Reference</label>
+              <input class="form-control" id="f_physical_proof_reference" placeholder="Waybill / tracking / receipt reference — attach the actual proof in the Documents tab"/>
+            </div>
+          </div>
+
+          <!-- Email submission -->
+          <div class="form-grid submission-method-block" id="fg_email_submission" style="display:none;margin-bottom:24px">
+            <div class="form-group">
+              <label>Email Acknowledgement Reference</label>
+              <input class="form-control" id="f_email_ack_reference" placeholder="Delivery/read receipt reference, if any"/>
+            </div>
+            <div class="form-group" style="justify-content:flex-end">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;font-size:13px">
+                <input type="checkbox" id="f_email_package_attached"/> Final package was attached to the email
+              </label>
+            </div>
+          </div>
+
+          <!-- Portal submission -->
+          <div class="form-grid submission-method-block" id="fg_portal_submission" style="display:none;margin-bottom:24px">
+            <div class="form-group">
+              <label>Portal Name <span class="req">*</span></label>
+              <input class="form-control" id="f_portal_name" placeholder="e.g. GlobalTenders, GeBIZ, client's own e-procurement portal"/>
+            </div>
+            <div class="form-group">
+              <label>Portal Submission Reference <span class="req">*</span></label>
+              <input class="form-control" id="f_portal_submission_reference" placeholder="Confirmation / transaction number from the portal"/>
+            </div>
+            <div class="form-group full">
+              <label>Acknowledgement / Screenshot Reference</label>
+              <input class="form-control" id="f_portal_ack_reference" placeholder="Reference note — attach the actual screenshot in the Documents tab"/>
             </div>
           </div>
 
@@ -1777,15 +1826,21 @@ async function openEditTender(id) {
     'bid_validity_days','bid_validity_extended_date','bid_validity_extension_note',
     'bid_preparation_stage','bid_preparation_remarks',
     'branch_stage_status','branch_stage_remarks',
-    'direct_portal_stage_status','direct_portal_remarks'
+    'direct_portal_stage_status','direct_portal_remarks',
+    'submission_time',
+    'physical_delivery_location','physical_receiver_ack','physical_proof_reference',
+    'email_ack_reference','portal_name','portal_submission_reference','portal_ack_reference'
   ];
   fields.forEach(f => {
     const el = document.getElementById('f_' + f);
     if (el && t[f] !== undefined && t[f] !== null) el.value = t[f];
   });
+  const emailPackageEl = document.getElementById('f_email_package_attached');
+  if (emailPackageEl) emailPackageEl.checked = !!t.email_package_attached;
   updateAssignedToLock();
   onSubmissionRouteChange();
   onBidPrepStageChange();
+  onSubmissionTypeChange();
 
   // Marketing persons + legal entity for branch
   await loadMarketingPersons();
@@ -1841,6 +1896,9 @@ function resetForm() {
   document.getElementById('f_new_remark').value = '';
   document.querySelectorAll('.result-block').forEach(b => b.style.display = 'none');
   document.querySelectorAll('.route-block').forEach(b => b.style.display = 'none');
+  document.querySelectorAll('.submission-method-block').forEach(b => b.style.display = 'none');
+  const emailPackageCb = document.getElementById('f_email_package_attached');
+  if (emailPackageCb) emailPackageCb.checked = false;
   const bidPrepReq = document.getElementById('bidPrepRemarksReq');
   if (bidPrepReq) bidPrepReq.style.display = 'none';
   const exceptionCb = document.getElementById('f_ledger_exception');
@@ -1871,13 +1929,20 @@ async function saveTender() {
   document.getElementById('f_customer_name').classList.remove('error');
 
   // Submission validation
+  const submissionType = getString('submission_type');
   if (getString('submission_status') === 'Submitted') {
     if (!getString('submission_date')) { toast('Date of Submission is required when status is Submitted', 'error'); return; }
-    if (!getString('submission_type')) { toast('Submission Type is required when status is Submitted', 'error'); return; }
+    if (!submissionType) { toast('Submission Type is required when status is Submitted', 'error'); return; }
     if (!getString('submission_route')) { toast('Submission Route is required when status is Submitted', 'error'); return; }
     if (getString('branch_code') && !getString('legal_entity')) {
       toast('No legal entity is mapped for this branch. Ask Admin to update the Branch-Entity Master before final submission.', 'error');
       return;
+    }
+    if (['Physical', 'Courier'].includes(submissionType) && !getString('physical_delivery_location')) {
+      toast('Delivery Location is required for a Physical/Courier submission', 'error'); return;
+    }
+    if (submissionType === 'Portal' && (!getString('portal_name') || !getString('portal_submission_reference'))) {
+      toast('Portal Name and Portal Submission Reference are required for a Portal submission', 'error'); return;
     }
   }
 
@@ -1976,6 +2041,15 @@ async function saveTender() {
     submission_address: getString('submission_address'),
     submission_route: getString('submission_route'),
     submitted_by: getString('submitted_by'),
+    submission_time: getString('submission_time'),
+    physical_delivery_location: ['Physical', 'Courier'].includes(submissionType) ? getString('physical_delivery_location') : '',
+    physical_receiver_ack: ['Physical', 'Courier'].includes(submissionType) ? getString('physical_receiver_ack') : '',
+    physical_proof_reference: ['Physical', 'Courier'].includes(submissionType) ? getString('physical_proof_reference') : '',
+    email_ack_reference: submissionType === 'Email' ? getString('email_ack_reference') : '',
+    email_package_attached: submissionType === 'Email' ? (document.getElementById('f_email_package_attached')?.checked || false) : false,
+    portal_name: submissionType === 'Portal' ? getString('portal_name') : '',
+    portal_submission_reference: submissionType === 'Portal' ? getString('portal_submission_reference') : '',
+    portal_ack_reference: submissionType === 'Portal' ? getString('portal_ack_reference') : '',
     expected_result_date: getString('expected_result_date'),
     tender_result_status: getString('tender_result_status'),
     won_date: getString('won_date'),
@@ -2340,6 +2414,17 @@ function onSubmissionRouteChange() {
   const portalBlock = document.getElementById('fg_portal_stage');
   if (branchBlock) branchBlock.style.display = route === 'Branch Submission to Client' ? '' : 'none';
   if (portalBlock) portalBlock.style.display = route === 'Direct Submission by Bid Team' ? '' : 'none';
+}
+
+// §6: each submission method captures its own proof fields.
+function onSubmissionTypeChange() {
+  const type = document.getElementById('f_submission_type')?.value;
+  const physicalBlock = document.getElementById('fg_physical_submission');
+  const emailBlock = document.getElementById('fg_email_submission');
+  const portalBlock = document.getElementById('fg_portal_submission');
+  if (physicalBlock) physicalBlock.style.display = ['Physical', 'Courier'].includes(type) ? '' : 'none';
+  if (emailBlock) emailBlock.style.display = type === 'Email' ? '' : 'none';
+  if (portalBlock) portalBlock.style.display = type === 'Portal' ? '' : 'none';
 }
 
 function onBidPrepStageChange() {

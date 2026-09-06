@@ -446,7 +446,7 @@
       </select>
       <select id="filterResultStatus" onchange="renderList()">
         <option value="">Result Status</option>
-        <option>Result Awaited</option><option>On Hold</option><option>Won</option><option>Lost</option><option>Cancelled</option><option>Disqualified</option><option>Not Participated</option>
+        <option>Result Awaited</option><option>Clarification</option><option>Negotiation</option><option>On Hold</option><option>Won</option><option>Lost</option><option>Cancelled</option><option>Disqualified</option><option>Not Participated</option>
       </select>
       <select id="filterBidType" onchange="renderList()"><option value="">Bid Type</option><option>RFP</option><option>RFQ</option><option>EOI</option><option>SR</option><option>Tender</option></select>
       <button class="btn btn-outline btn-sm" onclick="clearFilters()">Clear</button>
@@ -647,6 +647,48 @@
 
         <!-- Tab 4: Submission & Result -->
         <div class="form-tab-content" id="ftab-submission">
+          <div class="form-section-title">Workflow Stage</div>
+          <div class="form-grid" style="margin-bottom:16px">
+            <div class="form-group">
+              <label>Bid Preparation Stage</label>
+              <select class="form-control" id="f_bid_preparation_stage" onchange="onBidPrepStageChange()">
+                <option value="">— Select —</option>
+                <option>Not Started</option><option>In Preparation</option><option>Internal Review</option><option>Completed</option>
+              </select>
+            </div>
+            <div class="form-group full">
+              <label>Bid Preparation Remarks<span id="bidPrepRemarksReq" class="req" style="display:none"> *</span></label>
+              <textarea class="form-control" id="f_bid_preparation_remarks" rows="2" placeholder="Pending documents, approvals, corrections or next action"></textarea>
+            </div>
+          </div>
+          <div class="form-grid route-block" id="fg_branch_stage" style="display:none;margin-bottom:16px">
+            <div class="form-group">
+              <label>Branch Stage</label>
+              <select class="form-control" id="f_branch_stage_status">
+                <option value="">— Select —</option>
+                <option>Sent to Branch</option><option>Branch Review</option><option>Correction Required</option>
+                <option>Ready for Submission</option><option>Submitted by Branch</option>
+              </select>
+            </div>
+            <div class="form-group full">
+              <label>Branch Stage Remarks</label>
+              <textarea class="form-control" id="f_branch_stage_remarks" rows="2" placeholder="Branch response or pending action"></textarea>
+            </div>
+          </div>
+          <div class="form-grid route-block" id="fg_portal_stage" style="display:none;margin-bottom:24px">
+            <div class="form-group">
+              <label>Direct Portal Stage</label>
+              <select class="form-control" id="f_direct_portal_stage_status">
+                <option value="">— Select —</option>
+                <option>Portal Work Started</option><option>Documents Uploaded</option><option>Final Review</option><option>Submitted</option>
+              </select>
+            </div>
+            <div class="form-group full">
+              <label>Direct Portal Remarks</label>
+              <textarea class="form-control" id="f_direct_portal_remarks" rows="2" placeholder="Portal issue, reference or pending field"></textarea>
+            </div>
+          </div>
+
           <div class="form-section-title">Submission Details</div>
           <div class="form-grid" style="margin-bottom:24px">
             <div class="form-group">
@@ -677,7 +719,7 @@
             </div>
             <div class="form-group">
               <label>Submission Route <span class="req">*</span></label>
-              <select class="form-control" id="f_submission_route">
+              <select class="form-control" id="f_submission_route" onchange="onSubmissionRouteChange()">
                 <option value="">— Select —</option>
                 <option>Branch Submission to Client</option>
                 <option>Direct Submission by Bid Team</option>
@@ -722,7 +764,7 @@
               <label>Tender Result Status</label>
               <select class="form-control" id="f_tender_result_status" onchange="onResultStatusChange()">
                 <option value="">— Select —</option>
-                <option>Result Awaited</option><option>On Hold</option><option>Won</option><option>Lost</option>
+                <option>Result Awaited</option><option>Clarification</option><option>Negotiation</option><option>On Hold</option><option>Won</option><option>Lost</option>
                 <option>Cancelled</option><option>Disqualified</option><option>Not Participated</option>
               </select>
             </div>
@@ -738,7 +780,7 @@
 
           <!-- Result Awaited: follow-up -->
           <div id="resultBlock-awaited" class="result-block" style="display:none">
-            <div class="form-section-title" style="margin-top:20px">Result Awaited — Follow-Up</div>
+            <div class="form-section-title" style="margin-top:20px">Client Follow-Up</div>
             <div class="form-grid">
               <div class="form-group full"><label>Latest Follow-Up</label><textarea class="form-control" id="f_latest_followup" rows="2" placeholder="Latest client response / follow-up note"></textarea></div>
               <div class="form-group"><label>Next Follow-Up Date</label><input type="date" class="form-control" id="f_next_followup_date"/></div>
@@ -1070,7 +1112,7 @@
           <select id="rptBranch" class="form-control"><option value="">All Branches</option></select>
           <select id="rptResultStatus" class="form-control">
             <option value="">All Results</option>
-            <option>Result Awaited</option><option>On Hold</option><option>Won</option><option>Lost</option><option>Cancelled</option><option>Disqualified</option><option>Not Participated</option>
+            <option>Result Awaited</option><option>Clarification</option><option>Negotiation</option><option>On Hold</option><option>Won</option><option>Lost</option><option>Cancelled</option><option>Disqualified</option><option>Not Participated</option>
           </select>
           <select id="rptBidType" class="form-control">
             <option value="">All Bid Types</option>
@@ -1341,6 +1383,12 @@ function calcDaysLeftVal(deadline) {
   return Math.ceil((d - today) / 86400000);
 }
 
+// Result statuses that still represent an open dialogue with the client,
+// awaiting a final Won/Lost/Cancelled outcome — used wherever "still
+// awaiting result" needs to count Clarification/Negotiation too, not just
+// the literal "Result Awaited" value.
+const OPEN_RESULT_STATUSES = ['Result Awaited', 'Clarification', 'Negotiation'];
+
 // ── Deadline & Bid Validity Alerts ──────────────────────────────
 // Escalation ladder per requirements: 5/4d assignee only, 3d +Team Lead,
 // 2/1d +Team Lead +Manager, deadline day/overdue +branch too.
@@ -1380,7 +1428,7 @@ function tenderValidityExpiry(t) {
 }
 function activeValidityAlerts() {
   return allTenders
-    .filter(t => t.submission_status === 'Submitted' && ['Result Awaited', 'On Hold', ''].includes(t.tender_result_status || ''))
+    .filter(t => t.submission_status === 'Submitted' && [...OPEN_RESULT_STATUSES, 'On Hold', ''].includes(t.tender_result_status || ''))
     .map(t => {
       const expiry = tenderValidityExpiry(t);
       if (!expiry) return null;
@@ -1518,7 +1566,7 @@ function renderDashboard() {
     const d = new Date(t.deadline); d.setHours(0,0,0,0);
     return d < now && !['Submitted','Not Submitted','Cancelled'].includes(t.submission_status);
   }).length;
-  const awaited = allTenders.filter(t => t.tender_result_status === 'Result Awaited').length;
+  const awaited = allTenders.filter(t => OPEN_RESULT_STATUSES.includes(t.tender_result_status)).length;
   const won = allTenders.filter(t => t.tender_result_status === 'Won').length;
   const inprog = allTenders.filter(t => t.work_status === 'In Process').length;
 
@@ -1553,7 +1601,7 @@ function renderDashboard() {
     if (t.submission_status === 'Submitted') branchMap[b].submitted++;
     if (t.tender_result_status === 'Won') branchMap[b].won++;
     if (t.tender_result_status === 'Lost') branchMap[b].lost++;
-    if (t.tender_result_status === 'Result Awaited') branchMap[b].awaited++;
+    if (OPEN_RESULT_STATUSES.includes(t.tender_result_status)) branchMap[b].awaited++;
     branchMap[b].val += parseFloat(t.potential_amount_usd)||0;
   });
   const branchRows = Object.entries(branchMap).sort((a,b)=>b[1].total-a[1].total).map(([br,s]) =>
@@ -1582,7 +1630,7 @@ function renderDashboard() {
     : '<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">✅</div><h3>No overdue or urgent tenders</h3></div></td></tr>';
 
   // Result awaited table
-  const awaitedList = allTenders.filter(t => t.tender_result_status === 'Result Awaited').slice(0,10);
+  const awaitedList = allTenders.filter(t => OPEN_RESULT_STATUSES.includes(t.tender_result_status)).slice(0,10);
   document.getElementById('dashAwaitedBody').innerHTML = awaitedList.length
     ? awaitedList.map(t => `<tr class="row-link" onclick="openEditTender('${t.id}')">
         <td><b>${t.tender_unique_id || '—'}</b></td>
@@ -1726,13 +1774,18 @@ async function openEditTender(id) {
     'latest_followup','next_followup_date','hold_reason','hold_responsible','next_review_date',
     'client_feedback','winning_bidder','cancellation_reason','cancellation_evidence',
     'ledger_status','ledger_exception_reason',
-    'bid_validity_days','bid_validity_extended_date','bid_validity_extension_note'
+    'bid_validity_days','bid_validity_extended_date','bid_validity_extension_note',
+    'bid_preparation_stage','bid_preparation_remarks',
+    'branch_stage_status','branch_stage_remarks',
+    'direct_portal_stage_status','direct_portal_remarks'
   ];
   fields.forEach(f => {
     const el = document.getElementById('f_' + f);
     if (el && t[f] !== undefined && t[f] !== null) el.value = t[f];
   });
   updateAssignedToLock();
+  onSubmissionRouteChange();
+  onBidPrepStageChange();
 
   // Marketing persons + legal entity for branch
   await loadMarketingPersons();
@@ -1787,6 +1840,9 @@ function resetForm() {
   document.getElementById('historyContainer').innerHTML = '';
   document.getElementById('f_new_remark').value = '';
   document.querySelectorAll('.result-block').forEach(b => b.style.display = 'none');
+  document.querySelectorAll('.route-block').forEach(b => b.style.display = 'none');
+  const bidPrepReq = document.getElementById('bidPrepRemarksReq');
+  if (bidPrepReq) bidPrepReq.style.display = 'none';
   const exceptionCb = document.getElementById('f_ledger_exception');
   if (exceptionCb) exceptionCb.checked = false;
   const exceptionBlock = document.getElementById('ledgerExceptionBlock');
@@ -1838,6 +1894,10 @@ async function saveTender() {
   }
   if (resultStatus === 'Cancelled' && !getString('cancellation_reason')) {
     toast('Cancellation Reason is required when Result Status is Cancelled', 'error'); return;
+  }
+  const bidPrepStage = getString('bid_preparation_stage');
+  if (bidPrepStage && bidPrepStage !== 'Completed' && !getString('bid_preparation_remarks')) {
+    toast('Bid Preparation Remarks are required while the stage is not Completed', 'error'); return;
   }
   if (resultStatus === 'Won') {
     const clientType = getString('client_type');
@@ -1942,6 +2002,12 @@ async function saveTender() {
     bid_validity_expiry: getString('bid_validity_expiry'),
     bid_validity_extended_date: getString('bid_validity_extended_date'),
     bid_validity_extension_note: getString('bid_validity_extension_note'),
+    bid_preparation_stage: getString('bid_preparation_stage'),
+    bid_preparation_remarks: getString('bid_preparation_remarks'),
+    branch_stage_status: getString('submission_route') === 'Branch Submission to Client' ? getString('branch_stage_status') : '',
+    branch_stage_remarks: getString('submission_route') === 'Branch Submission to Client' ? getString('branch_stage_remarks') : '',
+    direct_portal_stage_status: getString('submission_route') === 'Direct Submission by Bid Team' ? getString('direct_portal_stage_status') : '',
+    direct_portal_remarks: getString('submission_route') === 'Direct Submission by Bid Team' ? getString('direct_portal_remarks') : '',
     potential_contract_period: getString('potential_contract_period'),
     potential_contract_period_months: getNum('potential_contract_period_months'),
     potential_start_date: getString('potential_start_date'),
@@ -2267,8 +2333,23 @@ function fillLegalEntity(branchCode) {
   }
 }
 
+// ── Workflow Stage (§5: fixed dropdowns per stage) ─────────────
+function onSubmissionRouteChange() {
+  const route = document.getElementById('f_submission_route')?.value;
+  const branchBlock = document.getElementById('fg_branch_stage');
+  const portalBlock = document.getElementById('fg_portal_stage');
+  if (branchBlock) branchBlock.style.display = route === 'Branch Submission to Client' ? '' : 'none';
+  if (portalBlock) portalBlock.style.display = route === 'Direct Submission by Bid Team' ? '' : 'none';
+}
+
+function onBidPrepStageChange() {
+  const stage = document.getElementById('f_bid_preparation_stage')?.value;
+  const reqMark = document.getElementById('bidPrepRemarksReq');
+  if (reqMark) reqMark.style.display = (stage && stage !== 'Completed') ? '' : 'none';
+}
+
 // ── Post-Submission Result & Ledger Control ────────────────────
-const RESULT_BLOCK_MAP = { 'Result Awaited': 'awaited', 'On Hold': 'hold', 'Lost': 'lost', 'Cancelled': 'cancelled', 'Won': 'won' };
+const RESULT_BLOCK_MAP = { 'Result Awaited': 'awaited', 'Clarification': 'awaited', 'Negotiation': 'awaited', 'On Hold': 'hold', 'Lost': 'lost', 'Cancelled': 'cancelled', 'Won': 'won' };
 
 function onResultStatusChange() {
   const status = document.getElementById('f_tender_result_status').value;
@@ -2754,7 +2835,7 @@ function runReport() {
 
   if (type === 'pending') data = data.filter(t => t.submission_status === 'Pending');
   else if (type === 'submitted') data = data.filter(t => t.submission_status === 'Submitted');
-  else if (type === 'result_awaited') data = data.filter(t => t.tender_result_status === 'Result Awaited');
+  else if (type === 'result_awaited') data = data.filter(t => OPEN_RESULT_STATUSES.includes(t.tender_result_status));
   else if (type === 'won') data = data.filter(t => t.tender_result_status === 'Won');
   else if (type === 'lost') data = data.filter(t => t.tender_result_status === 'Lost');
   else if (type === 'overdue') data = data.filter(t => {
@@ -2763,7 +2844,7 @@ function runReport() {
     return d < now && !['Submitted','Not Submitted','Cancelled'].includes(t.submission_status);
   });
   else if (type === 'post_submission') data = data.filter(t =>
-    t.submission_status === 'Submitted' && ['Result Awaited',''].includes(t.tender_result_status||'')
+    t.submission_status === 'Submitted' && [...OPEN_RESULT_STATUSES, ''].includes(t.tender_result_status||'')
   );
 
   if (type === 'monthly') {
@@ -3086,7 +3167,7 @@ function subBadge(s) {
   return `<span class="badge ${map[s]||'badge-new'}">${s||'—'}</span>`;
 }
 function resultBadge(s, ledgerStatus) {
-  const map = { 'Result Awaited':'badge-awaited','On Hold':'badge-awaited','Won':'badge-won','Lost':'badge-lost','Cancelled':'badge-cancelled','Disqualified':'badge-disqualified','Not Participated':'badge-cancelled' };
+  const map = { 'Result Awaited':'badge-awaited','Clarification':'badge-inprogress','Negotiation':'badge-inprogress','On Hold':'badge-awaited','Won':'badge-won','Lost':'badge-lost','Cancelled':'badge-cancelled','Disqualified':'badge-disqualified','Not Participated':'badge-cancelled' };
   if (s === 'Won' && ledgerStatus && !['Completed', 'Exception Granted'].includes(ledgerStatus)) {
     return `<span class="badge badge-ledger-pending">Won — Ledger Pending</span>`;
   }

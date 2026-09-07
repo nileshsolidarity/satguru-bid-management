@@ -377,12 +377,30 @@
       <div class="stat-card red"><div class="stat-label">TSR Pending</div><div class="stat-val" id="statTsrPending">—</div><div class="stat-sub">Not generated, from the 29th</div></div>
     </div>
 
+    <!-- Performance -->
+    <div class="stats-grid" id="dashPerfStats" style="margin-bottom:24px">
+      <div class="stat-card green"><div class="stat-label">Win Rate (Count)</div><div class="stat-val" id="statWinRateCount">—</div><div class="stat-sub">Won ÷ (Won + Lost)</div></div>
+      <div class="stat-card green"><div class="stat-label">Win Rate (Value)</div><div class="stat-val" id="statWinRateValue">—</div><div class="stat-sub">By potential USD</div></div>
+      <div class="stat-card blue"><div class="stat-label">Avg. Preparation Days</div><div class="stat-val" id="statAvgPrepDays">—</div><div class="stat-sub">Notified → submitted</div></div>
+      <div class="stat-card orange"><div class="stat-label">Avg. Days Awaiting Result</div><div class="stat-val" id="statAvgWaitDays">—</div><div class="stat-sub">Open tenders, submitted → today</div></div>
+    </div>
+
+    <!-- Results breakdown -->
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-header"><div class="card-title">🎯 Results Breakdown</div></div>
+      <div class="table-wrap" style="border:none;border-radius:0">
+        <table><thead><tr><th>Result</th><th>Count</th><th>Potential USD</th></tr></thead>
+        <tbody id="dashResultsBody"><tr><td colspan="3"><div class="loading"><span class="spinner"></span>Loading...</div></td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- Branch-wise summary -->
     <div class="card" style="margin-bottom:20px">
       <div class="card-header"><div class="card-title">🏢 Branch-wise Tender Summary</div></div>
       <div class="table-wrap" style="border:none;border-radius:0">
-        <table><thead><tr><th>Branch</th><th>Total</th><th>In Progress</th><th>Submitted</th><th>Won</th><th>Lost</th><th>Result Awaited</th><th>Potential USD</th></tr></thead>
-        <tbody id="dashBranchBody"><tr><td colspan="8"><div class="loading"><span class="spinner"></span>Loading...</div></td></tr></tbody>
+        <table><thead><tr><th>Branch</th><th>Total</th><th>In Progress</th><th>Submitted</th><th>Won</th><th>Lost</th><th>Result Awaited</th><th>Win Rate</th><th>Value Won</th><th>Potential USD</th></tr></thead>
+        <tbody id="dashBranchBody"><tr><td colspan="10"><div class="loading"><span class="spinner"></span>Loading...</div></td></tr></tbody>
         </table>
       </div>
     </div>
@@ -418,7 +436,7 @@
     </div>
 
     <!-- Monthly TSR status -->
-    <div class="card">
+    <div class="card" style="margin-bottom:20px">
       <div class="card-header">
         <div class="card-title">📋 Monthly TSR — Branch Status</div>
         <button class="btn btn-outline btn-sm" onclick="switchTab('tsr')">Open TSR Tab</button>
@@ -426,6 +444,36 @@
       <div class="table-wrap" style="border:none;border-radius:0">
         <table><thead><tr><th>Branch</th><th>Status</th><th>Sent</th><th>Return Due</th><th>Received</th></tr></thead>
         <tbody id="dashTsrBody"><tr><td colspan="5"><div class="loading"><span class="spinner"></span>Loading...</div></td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Tender ageing -->
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-header"><div class="card-title">⏱ Tender Ageing — Result Awaited</div></div>
+      <div class="table-wrap" style="border:none;border-radius:0">
+        <table><thead><tr><th>Age (Days Since Submission)</th><th>Count</th><th>Potential USD</th></tr></thead>
+        <tbody id="dashAgeingBody"><tr><td colspan="3"><div class="loading"><span class="spinner"></span>Loading...</div></td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Workload by assigned member -->
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-header"><div class="card-title">👤 Bid Team Workload</div></div>
+      <div class="table-wrap" style="border:none;border-radius:0">
+        <table><thead><tr><th>Assigned To</th><th>Total</th><th>In Process</th><th>Submitted</th><th>Result Awaited</th><th>Won</th></tr></thead>
+        <tbody id="dashWorkloadBody"><tr><td colspan="6"><div class="loading"><span class="spinner"></span>Loading...</div></td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Top loss reasons -->
+    <div class="card">
+      <div class="card-header"><div class="card-title">📉 Top Loss Reasons</div></div>
+      <div class="table-wrap" style="border:none;border-radius:0">
+        <table><thead><tr><th>Reason</th><th>Count</th></tr></thead>
+        <tbody id="dashLossReasonsBody"><tr><td colspan="2"><div class="loading"><span class="spinner"></span>Loading...</div></td></tr></tbody>
         </table>
       </div>
     </div>
@@ -1432,6 +1480,12 @@ function calcDaysLeftVal(deadline) {
   return Math.ceil((d - today) / 86400000);
 }
 
+function daysBetween(fromDateStr, toDateStr) {
+  const a = new Date(fromDateStr); a.setHours(0,0,0,0);
+  const b = new Date(toDateStr); b.setHours(0,0,0,0);
+  return Math.round((b - a) / 86400000);
+}
+
 // Result statuses that still represent an open dialogue with the client,
 // awaiting a final Won/Lost/Cancelled outcome — used wherever "still
 // awaiting result" needs to count Clarification/Negotiation too, not just
@@ -1640,23 +1694,74 @@ function renderDashboard() {
   document.getElementById('statLedgerPending').textContent = ledgerPending;
   document.getElementById('statValidityExpiring').textContent = activeValidityAlerts().length;
 
+  // Performance: win rate, average preparation / wait days
+  const lostTenders = allTenders.filter(t => t.tender_result_status === 'Lost');
+  const wonTenders = allTenders.filter(t => t.tender_result_status === 'Won');
+  const cancelledTenders = allTenders.filter(t => t.tender_result_status === 'Cancelled');
+  const onHoldTenders = allTenders.filter(t => t.tender_result_status === 'On Hold');
+  const awaitedTenders = allTenders.filter(t => OPEN_RESULT_STATUSES.includes(t.tender_result_status));
+  const decidedCount = wonTenders.length + lostTenders.length;
+  const wonVal = wonTenders.reduce((s, t) => s + (parseFloat(t.potential_amount_usd) || 0), 0);
+  const lostVal = lostTenders.reduce((s, t) => s + (parseFloat(t.potential_amount_usd) || 0), 0);
+  const cancelledVal = cancelledTenders.reduce((s, t) => s + (parseFloat(t.potential_amount_usd) || 0), 0);
+  const onHoldVal = onHoldTenders.reduce((s, t) => s + (parseFloat(t.potential_amount_usd) || 0), 0);
+  const awaitedVal = awaitedTenders.reduce((s, t) => s + (parseFloat(t.potential_amount_usd) || 0), 0);
+  const decidedVal = wonVal + lostVal;
+  document.getElementById('statWinRateCount').textContent = decidedCount > 0 ? Math.round((wonTenders.length / decidedCount) * 100) + '%' : '—';
+  document.getElementById('statWinRateValue').textContent = decidedVal > 0 ? Math.round((wonVal / decidedVal) * 100) + '%' : '—';
+
+  const prepDurations = allTenders
+    .filter(t => t.notification_received_date && t.submission_date)
+    .map(t => daysBetween(t.notification_received_date, t.submission_date))
+    .filter(d => d >= 0);
+  document.getElementById('statAvgPrepDays').textContent = prepDurations.length
+    ? Math.round(prepDurations.reduce((s, d) => s + d, 0) / prepDurations.length) + 'd' : '—';
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const waitDurations = awaitedTenders
+    .filter(t => t.submission_date)
+    .map(t => daysBetween(t.submission_date, todayStr))
+    .filter(d => d >= 0);
+  document.getElementById('statAvgWaitDays').textContent = waitDurations.length
+    ? Math.round(waitDurations.reduce((s, d) => s + d, 0) / waitDurations.length) + 'd' : '—';
+
+  const fmtVal = v => v > 0 ? '$' + (v / 1000).toFixed(0) + 'K' : '—';
+  const namedResultCount = wonTenders.length + lostTenders.length + awaitedTenders.length + onHoldTenders.length + cancelledTenders.length;
+  const otherResultVal = totalVal - (wonVal + lostVal + awaitedVal + onHoldVal + cancelledVal);
+  const resultRows = [
+    ['Won', wonTenders.length, wonVal, 'var(--success)'],
+    ['Lost', lostTenders.length, lostVal, 'var(--danger)'],
+    ['Result Awaited', awaitedTenders.length, awaitedVal, 'var(--warning)'],
+    ['On Hold', onHoldTenders.length, onHoldVal, 'var(--muted)'],
+    ['Cancelled', cancelledTenders.length, cancelledVal, 'var(--muted)'],
+  ];
+  // Reconcile against the total instead of silently dropping Disqualified / Not Participated / not-yet-set tenders.
+  if (total - namedResultCount > 0) {
+    resultRows.push(['Other (Disqualified / Not Participated / Not Set)', total - namedResultCount, otherResultVal, 'var(--muted)']);
+  }
+  document.getElementById('dashResultsBody').innerHTML = resultRows.map(([label, count, val, color]) =>
+    `<tr><td style="color:${color};font-weight:600">${label}</td><td>${count}</td><td>${fmtVal(val)}</td></tr>`
+  ).join('');
+
   // Branch-wise
   const branchMap = {};
   allTenders.forEach(t => {
     const b = t.branch_code || '(No Branch)';
-    if (!branchMap[b]) branchMap[b] = {total:0,inprog:0,submitted:0,won:0,lost:0,awaited:0,val:0};
+    if (!branchMap[b]) branchMap[b] = {total:0,inprog:0,submitted:0,won:0,lost:0,awaited:0,val:0,wonVal:0};
     branchMap[b].total++;
     if (t.work_status === 'In Process') branchMap[b].inprog++;
     if (t.submission_status === 'Submitted') branchMap[b].submitted++;
-    if (t.tender_result_status === 'Won') branchMap[b].won++;
+    if (t.tender_result_status === 'Won') { branchMap[b].won++; branchMap[b].wonVal += parseFloat(t.potential_amount_usd)||0; }
     if (t.tender_result_status === 'Lost') branchMap[b].lost++;
     if (OPEN_RESULT_STATUSES.includes(t.tender_result_status)) branchMap[b].awaited++;
     branchMap[b].val += parseFloat(t.potential_amount_usd)||0;
   });
-  const branchRows = Object.entries(branchMap).sort((a,b)=>b[1].total-a[1].total).map(([br,s]) =>
-    `<tr><td><b>${br}</b></td><td>${s.total}</td><td>${s.inprog}</td><td>${s.submitted}</td><td style="color:var(--success);font-weight:700">${s.won}</td><td style="color:var(--danger)">${s.lost}</td><td style="color:var(--warning)">${s.awaited}</td><td>${s.val>0?'$'+(s.val/1000).toFixed(0)+'K':'—'}</td></tr>`
-  ).join('');
-  document.getElementById('dashBranchBody').innerHTML = branchRows || '<tr><td colspan="8" style="padding:20px;color:var(--muted);text-align:center">No data</td></tr>';
+  const branchRows = Object.entries(branchMap).sort((a,b)=>b[1].total-a[1].total).map(([br,s]) => {
+    const branchDecided = s.won + s.lost;
+    const winRate = branchDecided > 0 ? Math.round((s.won / branchDecided) * 100) + '%' : '—';
+    return `<tr><td><b>${br}</b></td><td>${s.total}</td><td>${s.inprog}</td><td>${s.submitted}</td><td style="color:var(--success);font-weight:700">${s.won}</td><td style="color:var(--danger)">${s.lost}</td><td style="color:var(--warning)">${s.awaited}</td><td>${winRate}</td><td>${fmtVal(s.wonVal)}</td><td>${s.val>0?'$'+(s.val/1000).toFixed(0)+'K':'—'}</td></tr>`;
+  }).join('');
+  document.getElementById('dashBranchBody').innerHTML = branchRows || '<tr><td colspan="10" style="padding:20px;color:var(--muted);text-align:center">No data</td></tr>';
 
   // Overdue/due soon table
   const overdueList = allTenders.filter(t => {
@@ -1705,6 +1810,49 @@ function renderDashboard() {
         <td>${esc(a.t.marketing_person_spoc_name || '')}</td>
       </tr>`).join('')
     : '<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">📄</div><h3>No validity expiring soon</h3></div></td></tr>';
+
+  // Tender ageing — how long Result Awaited (and equivalent) tenders have been open
+  const ageingBuckets = [
+    { label: '0–30 days', min: 0, max: 30, count: 0, val: 0 },
+    { label: '31–60 days', min: 31, max: 60, count: 0, val: 0 },
+    { label: '61–90 days', min: 61, max: 90, count: 0, val: 0 },
+    { label: 'Over 90 days', min: 91, max: Infinity, count: 0, val: 0 },
+  ];
+  awaitedTenders.forEach(t => {
+    if (!t.submission_date) return;
+    const age = daysBetween(t.submission_date, todayStr);
+    const bucket = ageingBuckets.find(b => age >= b.min && age <= b.max);
+    if (bucket) { bucket.count++; bucket.val += parseFloat(t.potential_amount_usd) || 0; }
+  });
+  document.getElementById('dashAgeingBody').innerHTML = ageingBuckets.some(b => b.count > 0)
+    ? ageingBuckets.map(b => `<tr><td>${b.label}</td><td>${b.count}</td><td>${fmtVal(b.val)}</td></tr>`).join('')
+    : '<tr><td colspan="3" style="padding:20px;color:var(--muted);text-align:center">No tenders currently awaiting result</td></tr>';
+
+  // Workload by assigned member
+  const workloadMap = {};
+  allTenders.forEach(t => {
+    const who = t.assigned_to || '(Unassigned)';
+    if (!workloadMap[who]) workloadMap[who] = { total: 0, inprog: 0, submitted: 0, awaited: 0, won: 0 };
+    workloadMap[who].total++;
+    if (t.work_status === 'In Process') workloadMap[who].inprog++;
+    if (t.submission_status === 'Submitted') workloadMap[who].submitted++;
+    if (OPEN_RESULT_STATUSES.includes(t.tender_result_status)) workloadMap[who].awaited++;
+    if (t.tender_result_status === 'Won') workloadMap[who].won++;
+  });
+  const workloadRows = Object.entries(workloadMap).sort((a, b) => b[1].total - a[1].total).slice(0, 15).map(([who, s]) =>
+    `<tr><td><b>${esc(who)}</b></td><td>${s.total}</td><td>${s.inprog}</td><td>${s.submitted}</td><td style="color:var(--warning)">${s.awaited}</td><td style="color:var(--success);font-weight:700">${s.won}</td></tr>`
+  ).join('');
+  document.getElementById('dashWorkloadBody').innerHTML = workloadRows || '<tr><td colspan="6" style="padding:20px;color:var(--muted);text-align:center">No data</td></tr>';
+
+  // Top loss reasons
+  const lossReasonMap = {};
+  lostTenders.forEach(t => {
+    const reason = (t.lost_reason || '').trim() || '(No reason recorded)';
+    lossReasonMap[reason] = (lossReasonMap[reason] || 0) + 1;
+  });
+  const lossReasonRows = Object.entries(lossReasonMap).sort((a, b) => b[1] - a[1]).slice(0, 10)
+    .map(([reason, count]) => `<tr><td>${esc(reason)}</td><td>${count}</td></tr>`).join('');
+  document.getElementById('dashLossReasonsBody').innerHTML = lossReasonRows || '<tr><td colspan="2" style="padding:20px;color:var(--muted);text-align:center">No lost tenders yet</td></tr>';
 }
 
 // ── Tender List ───────────────────────────────────────────────

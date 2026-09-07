@@ -662,8 +662,35 @@
               <input type="date" class="form-control" id="f_deadline" onchange="calcDaysLeft()"/>
             </div>
             <div class="form-group">
+              <label>Deadline Time</label>
+              <input type="time" class="form-control" id="f_deadline_time"/>
+            </div>
+            <div class="form-group">
+              <label>Deadline Time Zone</label>
+              <select class="form-control" id="f_deadline_timezone">
+                <option value="">— Select —</option>
+                <option value="GST (UTC+4) — UAE">GST (UTC+4) — UAE</option>
+                <option value="AST (UTC+3) — Saudi Arabia">AST (UTC+3) — Saudi Arabia</option>
+                <option value="EAT (UTC+3) — East Africa">EAT (UTC+3) — East Africa</option>
+                <option value="CAT (UTC+2) — Central Africa">CAT (UTC+2) — Central Africa</option>
+                <option value="WAT (UTC+1) — West Africa">WAT (UTC+1) — West Africa</option>
+                <option value="PKT (UTC+5) — Pakistan">PKT (UTC+5) — Pakistan</option>
+                <option value="IST (UTC+5:30) — India">IST (UTC+5:30) — India</option>
+                <option value="GMT (UTC+0) — UK">GMT (UTC+0) — UK</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div class="form-group">
               <label>Days Left (Auto-calculated)</label>
               <input class="form-control" id="f_days_left" readonly/>
+            </div>
+            <div class="form-group">
+              <label>Reminder Status</label>
+              <select class="form-control" id="f_reminder_status">
+                <option>Active</option>
+                <option>Paused</option>
+              </select>
+              <span class="field-note">Pause to stop deadline alerts for this tender (e.g. withdrawn or on hold).</span>
             </div>
             <div class="form-group">
               <label>Start Date</label>
@@ -1509,7 +1536,7 @@ function alertLevelFor(daysLeft) {
 }
 function activeAlerts() {
   return allTenders
-    .filter(t => t.deadline && t.submission_status !== 'Submitted' && t.work_status !== 'Cancelled')
+    .filter(t => t.deadline && t.submission_status !== 'Submitted' && t.work_status !== 'Cancelled' && t.reminder_status !== 'Paused')
     .map(t => ({ t, level: alertLevelFor(t.days_left) }))
     .filter(a => a.level);
 }
@@ -1775,7 +1802,7 @@ function renderDashboard() {
         <td><b>${t.tender_unique_id || '—'}</b></td>
         <td>${esc(t.customer_name)}</td>
         <td>${esc(t.branch_code)}</td>
-        <td>${fmt(t.deadline)}</td>
+        <td>${fmtDeadline(t)}</td>
         <td>${daysPill(t.days_left)}</td>
         <td>${alertBadge(alertLevelFor(t.days_left))}</td>
         <td>${esc(t.assigned_to)}</td>
@@ -1891,7 +1918,7 @@ function renderList() {
       <td style="max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(t.customer_name)}">${esc(t.customer_name)}</td>
       <td>${esc(t.branch_code)}</td>
       <td>${esc(t.bid_type)}</td>
-      <td>${fmt(t.deadline)}</td>
+      <td>${fmtDeadline(t)}</td>
       <td>${daysPill(t.days_left)}</td>
       <td>${workBadge(t.work_status)}</td>
       <td>${subBadge(t.submission_status)}</td>
@@ -1929,6 +1956,7 @@ function openNewTender() {
   document.getElementById('formTenderId').textContent = 'ID will be auto-generated on save';
   document.getElementById('f_date_created').value = new Date().toISOString().slice(0,10);
   document.getElementById('f_created_by_name').value = currentUser.displayName || currentUser.email;
+  document.getElementById('f_reminder_status').value = 'Active';
   // The creator is assigned automatically; only a Team Lead/Manager/Admin may reassign.
   document.getElementById('f_assigned_to').value = currentUser.displayName || currentUser.email;
   updateAssignedToLock();
@@ -1963,7 +1991,7 @@ async function openEditTender(id) {
     'tender_unique_id','date_created','tender_source','mode','notification_received_date',
     'bid_type','customer_name','tender_reference_id','global_client_name','nca_erv',
     'bid_description','commodity_type','potential_amount_usd','branch_code','domain_name',
-    'created_by_name','assigned_to','deadline','days_left','start_date','finished_date',
+    'created_by_name','assigned_to','deadline','deadline_time','deadline_timezone','days_left','start_date','finished_date',
     'completed_percentage','work_status','marketing_person_spoc_id',
     'submission_status','submission_date','submitted_to','submission_type','submission_address',
     'submission_route','submitted_by','expected_result_date','tender_result_status','won_date','lost_reason',
@@ -1985,6 +2013,9 @@ async function openEditTender(id) {
   });
   const emailPackageEl = document.getElementById('f_email_package_attached');
   if (emailPackageEl) emailPackageEl.checked = !!t.email_package_attached;
+  // Reminder Status has no blank option, so a tender saved before this field existed
+  // must be defaulted explicitly — resetForm()'s value='' otherwise leaves it unselected.
+  document.getElementById('f_reminder_status').value = t.reminder_status || 'Active';
   updateAssignedToLock();
   onSubmissionRouteChange();
   onBidPrepStageChange();
@@ -2175,6 +2206,9 @@ async function saveTender() {
     region: getString('region'),
     assigned_to: resolvedAssignedTo,
     deadline: getString('deadline'),
+    deadline_time: getString('deadline_time'),
+    deadline_timezone: getString('deadline_timezone'),
+    reminder_status: getString('reminder_status') || 'Active',
     days_left: calcDaysLeftVal(getString('deadline')),
     start_date: getString('start_date'),
     finished_date: getString('finished_date'),
@@ -3382,6 +3416,14 @@ function fmt(d) {
   if (!/^\d{4}-\d{2}-\d{2}/.test(s)) return s;
   const [y,m,day] = s.split('-');
   return `${day}/${m}/${y}`;
+}
+
+// Deadline date plus the optional time/time-zone captured alongside it (§12).
+function fmtDeadline(t) {
+  const datePart = fmt(t.deadline);
+  if (datePart === '—' || !t.deadline_time) return datePart;
+  const tz = t.deadline_timezone ? ' ' + t.deadline_timezone.split(' — ')[0] : '';
+  return `${datePart}, ${t.deadline_time}${tz}`;
 }
 
 function daysPill(n) {

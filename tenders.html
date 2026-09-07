@@ -2183,9 +2183,11 @@ async function saveTender() {
   // re-derive it here too so a tampered/unlocked field can't sneak a reassignment past that rule.
   let resolvedAssignedTo = getString('assigned_to');
   if (!canReassignTender()) {
-    resolvedAssignedTo = editingTenderId
-      ? (allTenders.find(t => t.id === editingTenderId)?.assigned_to || resolvedAssignedTo)
-      : (currentUser.displayName || currentUser.email);
+    // Never fall back to the (possibly tampered) form value here — an empty
+    // stored assigned_to, or a tender missing from the local cache, must not
+    // let a locked-out user's edited field through.
+    const prevTenderForLock = editingTenderId ? allTenders.find(t => t.id === editingTenderId) : null;
+    resolvedAssignedTo = prevTenderForLock ? (prevTenderForLock.assigned_to || '') : (currentUser.displayName || currentUser.email);
   }
 
   const data = {
@@ -3148,7 +3150,7 @@ function runReport() {
     <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.customer_name)}</td>
     <td>${esc(t.branch_code)}</td>
     <td>${esc(t.bid_type)}</td>
-    <td>${fmt(t.deadline)}</td>
+    <td>${fmtDeadline(t)}</td>
     <td>${daysPill(t.days_left)}</td>
     <td>${workBadge(t.work_status)}</td>
     <td>${subBadge(t.submission_status)}</td>

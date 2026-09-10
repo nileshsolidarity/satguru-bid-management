@@ -2681,9 +2681,12 @@ function updateLedgerStatusPreview() {
   const exceptionChecked = document.getElementById('f_ledger_exception')?.checked;
   const exceptionReason = document.getElementById('f_ledger_exception_reason')?.value.trim();
 
-  if (clientType === 'Existing Client' && existingLedger) el.value = 'Completed';
+  // An admin-recorded exception must win over the ordinary derivation below —
+  // it exists specifically to unblock a New Client tender whose ledger name
+  // is (necessarily) already filled in but not yet completed by Accounts.
+  if (exceptionChecked && exceptionReason) el.value = 'Exception Granted';
+  else if (clientType === 'Existing Client' && existingLedger) el.value = 'Completed';
   else if (clientType === 'New Client' && newLedgerName) el.value = 'Request Sent to Accounts';
-  else if (exceptionChecked && exceptionReason) el.value = 'Exception Granted';
   else el.value = 'Ledger Pending';
 }
 

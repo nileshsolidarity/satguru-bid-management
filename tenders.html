@@ -11,6 +11,9 @@
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
 
+  <!-- Chart.js (§11 dashboard charts) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -469,13 +472,60 @@
     </div>
 
     <!-- Top loss reasons -->
-    <div class="card">
+    <div class="card" style="margin-bottom:20px">
       <div class="card-header"><div class="card-title">📉 Top Loss Reasons</div></div>
       <div class="table-wrap" style="border:none;border-radius:0">
         <table><thead><tr><th>Reason</th><th>Count</th></tr></thead>
         <tbody id="dashLossReasonsBody"><tr><td colspan="2"><div class="loading"><span class="spinner"></span>Loading...</div></td></tr></tbody>
         </table>
       </div>
+    </div>
+
+    <!-- Tenders by branch / region / legal entity / country -->
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-header">
+        <div class="card-title">📊 Tenders by Branch / Region / Legal Entity / Country</div>
+        <select id="dashBreakdownDim" onchange="renderBreakdownChart()" style="width:auto;padding:6px 10px">
+          <option value="branch">Branch</option>
+          <option value="region">Region</option>
+          <option value="legal_entity">Legal Entity</option>
+          <option value="country">Country</option>
+        </select>
+      </div>
+      <div style="padding:16px;height:280px"><canvas id="chartBreakdown"></canvas></div>
+    </div>
+
+    <!-- Tenders by category & type -->
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-header"><div class="card-title">🏷 Tenders by Category &amp; Tender Type</div></div>
+      <div style="display:flex;flex-wrap:wrap;gap:16px;padding:16px">
+        <div style="flex:1;min-width:260px;height:260px"><canvas id="chartByCategory"></canvas></div>
+        <div style="flex:1;min-width:260px;height:260px"><canvas id="chartByBidType"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Monthly submission trend -->
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-header"><div class="card-title">📈 Monthly Submission Trend</div></div>
+      <div style="padding:16px;height:280px"><canvas id="chartMonthlySubmission"></canvas></div>
+    </div>
+
+    <!-- Won / Lost / Result Awaited / Cancelled trend -->
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-header"><div class="card-title">📊 Won / Lost / Result Awaited / Cancelled Trend</div></div>
+      <div style="padding:16px;height:280px"><canvas id="chartResultTrend"></canvas></div>
+    </div>
+
+    <!-- Potential vs awarded value -->
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-header"><div class="card-title">💰 Potential Value vs Awarded (Won) Value</div></div>
+      <div style="padding:16px;height:280px"><canvas id="chartPotentialVsAwarded"></canvas></div>
+    </div>
+
+    <!-- Bid validity expiry ageing -->
+    <div class="card">
+      <div class="card-header"><div class="card-title">⏳ Bid Validity Expiry Ageing</div></div>
+      <div style="padding:16px;height:280px"><canvas id="chartValidityAgeing"></canvas></div>
     </div>
   </div>
 
@@ -1478,6 +1528,7 @@ async function loadAllData() {
   renderAlertsPanel();
   maybeShowAlertPopup();
   await loadBranchesIntoSelects();
+  renderBreakdownChart(); // country lives on the branch master, unavailable until now
   await loadLedgersIntoSelects();
   loadMasters();
   refreshDashboardTsr();
@@ -1880,6 +1931,219 @@ function renderDashboard() {
   const lossReasonRows = Object.entries(lossReasonMap).sort((a, b) => b[1] - a[1]).slice(0, 10)
     .map(([reason, count]) => `<tr><td>${esc(reason)}</td><td>${count}</td></tr>`).join('');
   document.getElementById('dashLossReasonsBody').innerHTML = lossReasonRows || '<tr><td colspan="2" style="padding:20px;color:var(--muted);text-align:center">No lost tenders yet</td></tr>';
+
+  renderDashCharts();
+}
+
+// ── §11 Dashboard Charts (Chart.js) ─────────────────────────────
+// Categorical slots 1–4 of the validated palette (blue/orange/aqua/yellow) —
+// worst adjacent CVD ΔE 9.1, worst normal-vision ΔE 22.9, so any subset of
+// these four is safe to pair on one chart. Deliberately not the app's own
+// red/green status colors: those fail CVD separation (ΔE 5.0) when placed
+// next to each other as line series, so identity here rides the legend
+// instead of an assumed badge-color mapping.
+const CHART_HUE = { blue: '#2a78d6', orange: '#eb6834', aqua: '#1baf7a', yellow: '#eda100' };
+let dashCharts = {};
+
+function upsertChart(canvasId, config) {
+  const el = document.getElementById(canvasId);
+  if (!el || typeof Chart === 'undefined') return;
+  if (dashCharts[canvasId]) dashCharts[canvasId].destroy();
+  dashCharts[canvasId] = new Chart(el, config);
+}
+
+function chartAxisDefaults() {
+  return {
+    x: { grid: { display: false }, ticks: { color: '#6b7280', font: { size: 11 } } },
+    y: { beginAtZero: true, grid: { color: '#e0e4ea' }, ticks: { color: '#6b7280', font: { size: 11 }, precision: 0 } }
+  };
+}
+
+function countBy(list, keyFn) {
+  const counts = {};
+  list.forEach(t => { const k = keyFn(t) || '(Unset)'; counts[k] = (counts[k] || 0) + 1; });
+  return counts;
+}
+
+// Single measure across categories reads as magnitude, not identity — one
+// hue throughout, never a rainbow per bar.
+function singleSeriesBarConfig(labels, data, label) {
+  return {
+    type: 'bar',
+    data: { labels, datasets: [{ label, data, backgroundColor: CHART_HUE.blue, borderRadius: 4, maxBarThickness: 24 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: chartAxisDefaults()
+    }
+  };
+}
+
+// Region/legal entity are already captured on the tender at save time
+// (fillLegalEntity); country only lives on the branch master, so it's
+// looked up live and stays blank until loadBranchesIntoSelects() populates
+// `branches` (loadAllData() re-renders this one chart once that resolves).
+function branchDimValue(t, dim) {
+  if (dim === 'branch') return t.branch_code || '(Unassigned)';
+  if (dim === 'region') return t.region || '(Unmapped)';
+  if (dim === 'legal_entity') return t.legal_entity || '(Unmapped)';
+  const b = branches.find(x => x.id === t.branch_code);
+  return (b && b.country) || '(Unmapped)';
+}
+
+function renderBreakdownChart() {
+  const dim = document.getElementById('dashBreakdownDim')?.value || 'branch';
+  const labelMap = { branch: 'Branch', region: 'Region', legal_entity: 'Legal Entity', country: 'Country' };
+  const counts = countBy(allTenders, t => branchDimValue(t, dim));
+  const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  upsertChart('chartBreakdown', singleSeriesBarConfig(entries.map(e => e[0]), entries.map(e => e[1]), 'Tenders by ' + labelMap[dim]));
+}
+
+function renderCategoryCharts() {
+  const catEntries = Object.entries(countBy(allTenders, t => t.commodity_type)).sort((a, b) => b[1] - a[1]);
+  upsertChart('chartByCategory', singleSeriesBarConfig(catEntries.map(e => e[0]), catEntries.map(e => e[1]), 'By Category'));
+
+  const typeEntries = Object.entries(countBy(allTenders, t => t.bid_type)).sort((a, b) => b[1] - a[1]);
+  upsertChart('chartByBidType', singleSeriesBarConfig(typeEntries.map(e => e[0]), typeEntries.map(e => e[1]), 'By Tender Type'));
+}
+
+// Last n calendar months as 'YYYY-MM' keys, oldest first. Built from local
+// getFullYear()/getMonth() only — routing through Date→toISOString (UTC)
+// would roll local midnight on the 1st back into the previous UTC month for
+// every positive-UTC-offset viewer (UAE/Saudi/Pakistan/India/East Africa —
+// i.e. everywhere this app's branches actually are), permanently hiding the
+// current month from every trend chart.
+function lastNMonths(n) {
+  const out = [];
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth();
+  for (let i = n - 1; i >= 0; i--) {
+    let mm = m - i, yy = y;
+    while (mm < 0) { mm += 12; yy--; }
+    out.push(yy + '-' + String(mm + 1).padStart(2, '0'));
+  }
+  return out;
+}
+function monthLabel(ym) {
+  const [y, m] = ym.split('-');
+  return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+}
+function lineDataset(label, data, color) {
+  return {
+    label, data, borderColor: color, backgroundColor: color, borderWidth: 2,
+    borderJoinStyle: 'round', borderCapStyle: 'round', tension: 0, fill: false,
+    pointRadius: 4, pointHoverRadius: 6, pointBackgroundColor: color, pointBorderColor: '#fff', pointBorderWidth: 2
+  };
+}
+
+function renderMonthlySubmissionChart() {
+  const months = lastNMonths(12);
+  const counts = months.map(m => allTenders.filter(t => t.submission_status === 'Submitted' && (t.submission_date || '').slice(0, 7) === m).length);
+  upsertChart('chartMonthlySubmission', {
+    type: 'line',
+    data: { labels: months.map(monthLabel), datasets: [lineDataset('Submitted', counts, CHART_HUE.blue)] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } },
+      interaction: { mode: 'index', intersect: false },
+      scales: chartAxisDefaults()
+    }
+  });
+}
+
+// Bucketed by the month a tender was created (matches the Reports tab's own
+// "monthly" grouping) rather than a per-status event date — Lost/Cancelled/
+// Result Awaited have no dedicated date field to trend against.
+function renderResultTrendChart() {
+  const months = lastNMonths(12);
+  const series = [
+    { key: 'Won', color: CHART_HUE.blue },
+    { key: 'Lost', color: CHART_HUE.orange },
+    { key: 'Result Awaited', color: CHART_HUE.aqua },
+    { key: 'Cancelled', color: CHART_HUE.yellow }
+  ];
+  const datasets = series.map(s => lineDataset(s.key, months.map(m => allTenders.filter(t =>
+    (t.date_created || '').slice(0, 7) === m &&
+    (s.key === 'Result Awaited' ? OPEN_RESULT_STATUSES.includes(t.tender_result_status) : t.tender_result_status === s.key)
+  ).length), s.color));
+  upsertChart('chartResultTrend', {
+    type: 'line',
+    data: { labels: months.map(monthLabel), datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      // The low-contrast yellow ("Cancelled") series leans on this legend
+      // plus the Results Breakdown table above for its accessibility relief.
+      plugins: { legend: { display: true, position: 'bottom', labels: { color: '#374151', boxWidth: 12, usePointStyle: true } }, tooltip: { mode: 'index', intersect: false } },
+      interaction: { mode: 'index', intersect: false },
+      scales: chartAxisDefaults()
+    }
+  });
+}
+
+function renderPotentialVsAwardedChart() {
+  const months = lastNMonths(12);
+  const sumByMonth = pred => months.map(m => allTenders
+    .filter(t => (t.date_created || '').slice(0, 7) === m && pred(t))
+    .reduce((sum, t) => sum + (parseFloat(t.potential_amount_usd) || 0), 0));
+  upsertChart('chartPotentialVsAwarded', {
+    type: 'bar',
+    data: {
+      labels: months.map(monthLabel),
+      datasets: [
+        { label: 'Potential Value', data: sumByMonth(() => true), backgroundColor: CHART_HUE.blue, borderRadius: 4, maxBarThickness: 20 },
+        { label: 'Awarded (Won) Value', data: sumByMonth(t => t.tender_result_status === 'Won'), backgroundColor: CHART_HUE.orange, borderRadius: 4, maxBarThickness: 20 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true, position: 'bottom', labels: { color: '#374151', boxWidth: 12, usePointStyle: true } },
+        tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': $' + Math.round(ctx.parsed.y).toLocaleString() } }
+      },
+      scales: chartAxisDefaults()
+    }
+  });
+}
+
+// One hue, light→dark, ordered by urgency (Expired darkest) — an ordinal
+// ramp, not identity, since the buckets are inherently ordered.
+const VALIDITY_AGEING_BUCKETS = [
+  { key: 'Expired', color: '#1c5cab', test: d => d < 0 },
+  { key: '0–15 days', color: '#2a78d6', test: d => d >= 0 && d <= 15 },
+  { key: '16–30 days', color: '#5598e7', test: d => d > 15 && d <= 30 },
+  { key: '31–60 days', color: '#6da7ec', test: d => d > 30 && d <= 60 },
+  { key: '60+ days', color: '#86b6ef', test: d => d > 60 }
+];
+// Same "still open for validity tracking" population as activeValidityAlerts()
+// (submitted, not yet finally decided, has an expiry) — but bucketed across
+// every day of ageing rather than gated to just the 15/7/3-day/expired alert
+// trigger points, the way the Tender Ageing table buckets every awaited
+// tender rather than only ones sitting at a specific alert threshold.
+function renderValidityAgeingChart() {
+  const daysToExpiryList = allTenders
+    .filter(t => t.submission_status === 'Submitted' && [...OPEN_RESULT_STATUSES, 'On Hold', ''].includes(t.tender_result_status || '') && tenderValidityExpiry(t))
+    .map(t => calcDaysLeftVal(tenderValidityExpiry(t)));
+  const counts = VALIDITY_AGEING_BUCKETS.map(b => daysToExpiryList.filter(b.test).length);
+  upsertChart('chartValidityAgeing', {
+    type: 'bar',
+    data: { labels: VALIDITY_AGEING_BUCKETS.map(b => b.key), datasets: [{
+      label: 'Tenders', data: counts, backgroundColor: VALIDITY_AGEING_BUCKETS.map(b => b.color), borderRadius: 4, maxBarThickness: 32
+    }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: chartAxisDefaults()
+    }
+  });
+}
+
+function renderDashCharts() {
+  renderBreakdownChart();
+  renderCategoryCharts();
+  renderMonthlySubmissionChart();
+  renderResultTrendChart();
+  renderPotentialVsAwardedChart();
+  renderValidityAgeingChart();
 }
 
 // ── Tender List ───────────────────────────────────────────────

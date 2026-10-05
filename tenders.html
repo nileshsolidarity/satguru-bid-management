@@ -586,11 +586,12 @@
         <button class="form-tab-btn" onclick="switchFormTab('scope')">2. Scope & Commercial</button>
         <button class="form-tab-btn" onclick="switchFormTab('ownership')">3. Ownership & Timeline</button>
         <button class="form-tab-btn" onclick="switchFormTab('submission')">4. Submission & Result</button>
-        <button class="form-tab-btn" onclick="switchFormTab('contract')">5. Contract Details</button>
-        <button class="form-tab-btn" onclick="switchFormTab('contacts')">6. Contacts</button>
-        <button class="form-tab-btn" onclick="switchFormTab('documents')">7. Documents</button>
-        <button class="form-tab-btn" onclick="switchFormTab('remarks')">8. Remarks</button>
-        <button class="form-tab-btn" onclick="switchFormTab('history')" id="historyTabBtn">9. History</button>
+        <button class="form-tab-btn" onclick="switchFormTab('clarifications')">5. Clarifications & Amendments</button>
+        <button class="form-tab-btn" onclick="switchFormTab('contract')">6. Contract Details</button>
+        <button class="form-tab-btn" onclick="switchFormTab('contacts')">7. Contacts</button>
+        <button class="form-tab-btn" onclick="switchFormTab('documents')">8. Documents</button>
+        <button class="form-tab-btn" onclick="switchFormTab('remarks')">9. Remarks</button>
+        <button class="form-tab-btn" onclick="switchFormTab('history')" id="historyTabBtn">10. History</button>
       </div>
       <div class="card-body">
 
@@ -650,6 +651,27 @@
               </select>
             </div>
           </div>
+
+          <div class="form-section-title" style="margin-top:20px">Evaluation</div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Evaluation Status</label>
+              <select class="form-control" id="f_evaluation_status" onchange="onEvaluationStatusChange()">
+                <option value="">— Select —</option>
+                <option>Pending Evaluation</option><option>Participate</option><option>Hold - Not Participating</option>
+              </select>
+              <span class="field-note" id="evalGateNote"></span>
+            </div>
+            <div class="form-group">
+              <label>Clarification Due Date</label>
+              <input type="date" class="form-control" id="f_clarification_due_date"/>
+              <span class="field-note">Last date to submit clarification questions to the client/portal, if stated in the tender.</span>
+            </div>
+            <div class="form-group full">
+              <label>Evaluation Remarks</label>
+              <textarea class="form-control" id="f_evaluation_remarks" rows="2" placeholder="Basis for the Participate / Hold decision"></textarea>
+            </div>
+          </div>
         </div>
 
         <!-- Tab 2: Scope & Commercial -->
@@ -663,7 +685,7 @@
               <label>Air & Non Air Commodity / Cargo <span class="req">*</span></label>
               <select class="form-control" id="f_commodity_type">
                 <option value="">— Select —</option>
-                <option>Air</option><option>Non Air</option><option>Air & Non Air</option><option>Car</option><option>Hotel</option><option>Cargo</option><option>MICE</option><option>Visa</option>
+                <option>Air</option><option>Non Air</option><option>Air & Non Air</option><option>Car</option><option>Hotel</option><option>Cargo</option><option>MICE</option><option>Visa</option><option>Accommodation & Conference</option>
               </select>
             </div>
             <div class="form-group">
@@ -1023,7 +1045,41 @@
           </div>
         </div>
 
-        <!-- Tab 5: Contract -->
+        <!-- Tab 5: Clarifications, Briefings & Amendments -->
+        <div class="form-tab-content" id="ftab-clarifications">
+          <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Log clarification questions, pre-bid briefing meetings, and client addenda/amendments against this tender.</p>
+          <div class="form-grid" style="margin-bottom:12px">
+            <div class="form-group">
+              <label>Type <span class="req">*</span></label>
+              <select class="form-control" id="cl_type">
+                <option value="">— Select —</option>
+                <option>Clarification Question</option>
+                <option>Pre-Bid Briefing / Meeting</option>
+                <option>Amendment / Addendum</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Date</label>
+              <input type="date" class="form-control" id="cl_date"/>
+            </div>
+            <div class="form-group">
+              <label>Raised By / Attended By</label>
+              <input class="form-control" id="cl_by" placeholder="Name of person(s) involved"/>
+            </div>
+            <div class="form-group full">
+              <label>Description <span class="req">*</span></label>
+              <textarea class="form-control" id="cl_description" rows="2" placeholder="The question asked, what was briefed, or what the amendment changed..."></textarea>
+            </div>
+            <div class="form-group full">
+              <label>Outcome / Response</label>
+              <textarea class="form-control" id="cl_outcome" rows="2" placeholder="Client's response, briefing minutes, or impact of the amendment"></textarea>
+            </div>
+          </div>
+          <button class="btn btn-outline" type="button" onclick="addClarificationEntry()">+ Add to Log</button>
+          <div id="clarificationsContainer" style="margin-top:20px"></div>
+        </div>
+
+        <!-- Tab 6: Contract -->
         <div class="form-tab-content" id="ftab-contract">
           <div class="form-grid">
             <div class="form-group">
@@ -1046,14 +1102,14 @@
           </div>
         </div>
 
-        <!-- Tab 6: Contacts -->
+        <!-- Tab 7: Contacts -->
         <div class="form-tab-content" id="ftab-contacts">
           <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Add one or more contact persons for this tender.</p>
           <div id="contactsContainer"></div>
           <button class="add-contact-btn" onclick="addContact()">+ Add Contact</button>
         </div>
 
-        <!-- Tab 7: Documents -->
+        <!-- Tab 8: Documents -->
         <div class="form-tab-content" id="ftab-documents">
           <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Upload documents related to this tender. Max 10MB per file.</p>
           <div class="form-group" style="max-width:320px;margin-bottom:16px">
@@ -1082,7 +1138,7 @@
           <div id="docsContainer" style="margin-top:16px"></div>
         </div>
 
-        <!-- Tab 8: Remarks -->
+        <!-- Tab 9: Remarks -->
         <div class="form-tab-content" id="ftab-remarks">
           <div class="form-group full" style="margin-bottom:16px">
             <label>Add New Remark</label>
@@ -1093,7 +1149,7 @@
           </div>
         </div>
 
-        <!-- Tab 9: History -->
+        <!-- Tab 10: History -->
         <div class="form-tab-content" id="ftab-history">
           <div style="font-size:13px;font-weight:600;color:var(--muted);margin-bottom:16px">Status & Audit History</div>
           <div id="historyContainer" class="timeline"></div>
@@ -1383,6 +1439,7 @@ let currentUserProfile = null;
 let allTenders = [];
 let editingTenderId = null;
 let pendingDocuments = []; // docs queued for upload on new tender
+let currentClarifications = []; // clarification/briefing/amendment log for the open tender
 let masterModalType = null;
 let loadedLedgerStatus = ''; // ledger_status as stored on the tender being edited — guards against re-deriving it back to 'Pending'/'Request Sent' on an unrelated save
 let loadedClientType = '';
@@ -1466,6 +1523,7 @@ async function ensureUserProfile(user) {
       name: user.displayName || user.email,
       role: 'readonly',  // default role — Admin can change
       branch_code: '',
+      branch_codes: [],  // Bid Team Master: branches this person is assigned to; branch_code kept in sync for older code paths
       active: true,
       created_at: firebase.firestore.FieldValue.serverTimestamp()
     };
@@ -1475,6 +1533,17 @@ async function ensureUserProfile(user) {
     currentUserProfile = snap.data();
   }
 }
+
+// Branches a user is assigned to — supports the legacy single branch_code field
+// and the newer multi-branch branch_codes array, so older profiles keep working.
+function myBranchCodes(profile) {
+  profile = profile || currentUserProfile;
+  if (!profile) return [];
+  if (Array.isArray(profile.branch_codes) && profile.branch_codes.length) return profile.branch_codes;
+  return profile.branch_code ? [profile.branch_code] : [];
+}
+// Roles whose data access (read and edit) is limited to their assigned branches.
+const BRANCH_SCOPED_ROLES = ['branchrep', 'spoc', 'branchmanager'];
 
 function signInWithGoogle() {
   const provider = new firebase.auth.GoogleAuthProvider();
@@ -1503,8 +1572,7 @@ function canCreate() { return ['admin','bidmanager','branchrep'].includes(curren
 function canEdit(tender) {
   const role = currentUserProfile?.role;
   if (['admin','bidmanager'].includes(role)) return true;
-  if (role === 'branchrep' && tender?.branch_code === currentUserProfile?.branch_code) return true;
-  if (role === 'spoc' && tender?.branch_code === currentUserProfile?.branch_code) return true; // limited fields
+  if (BRANCH_SCOPED_ROLES.includes(role) && myBranchCodes().includes(tender?.branch_code)) return true; // spoc: limited fields
   return false;
 }
 function canManageMasters() { return currentUserProfile?.role === 'admin'; }
@@ -1545,6 +1613,13 @@ async function loadTenders() {
     allTenders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     // auto-update days_left
     allTenders.forEach(t => { t.days_left = calcDaysLeftVal(t.deadline); });
+    // Branch-scoped roles (Branch Rep / SPOC / Branch Manager) only ever see their
+    // own branches' tenders — everything downstream (Dashboard, List, Reports, TSR)
+    // reads from this one array, so restricting it here restricts all of them.
+    if (BRANCH_SCOPED_ROLES.includes(currentUserProfile?.role)) {
+      const mine = new Set(myBranchCodes());
+      allTenders = allTenders.filter(t => mine.has(t.branch_code));
+    }
   } catch (e) {
     console.error('loadTenders', e);
     toast('Error loading tenders: ' + e.message, 'error');
@@ -1628,7 +1703,7 @@ function isAlertRecipient(t, level) {
   // Team Lead / Manager get copied in from tier 2 onward, for all tenders
   if (level.tier >= 2 && ['admin', 'bidmanager'].includes(role)) return true;
   // The relevant branch (Marketing Manager) is escalated to at the final tier
-  if (level.tier >= 4 && ['branchrep', 'branchmanager'].includes(role) && t.branch_code === currentUserProfile.branch_code) return true;
+  if (level.tier >= 4 && ['branchrep', 'branchmanager'].includes(role) && myBranchCodes().includes(t.branch_code)) return true;
   return false;
 }
 function getMyAlerts() {
@@ -2225,10 +2300,13 @@ function openNewTender() {
   document.getElementById('f_assigned_to').value = currentUser.displayName || currentUser.email;
   updateAssignedToLock();
   calcBidValidityExpiry();
+  document.getElementById('f_evaluation_status').value = 'Pending Evaluation';
+  onEvaluationStatusChange();
 
-  // Pre-fill branch for branch rep
-  if (currentUserProfile?.branch_code) {
-    document.getElementById('f_branch_code').value = currentUserProfile.branch_code;
+  // Pre-fill branch for branch rep — only when they cover exactly one, otherwise let them pick among their own
+  const myBranches = myBranchCodes();
+  if (myBranches.length === 1) {
+    document.getElementById('f_branch_code').value = myBranches[0];
     onBranchChange();
   }
 
@@ -2254,6 +2332,7 @@ async function openEditTender(id) {
   const fields = [
     'tender_unique_id','date_created','tender_source','mode','notification_received_date',
     'bid_type','customer_name','tender_reference_id','global_client_name','nca_erv',
+    'evaluation_status','clarification_due_date','evaluation_remarks',
     'bid_description','commodity_type','potential_amount_usd','branch_code','domain_name',
     'created_by_name','assigned_to','deadline','deadline_time','deadline_timezone','days_left','start_date','finished_date',
     'completed_percentage','work_status','marketing_person_spoc_id',
@@ -2282,6 +2361,7 @@ async function openEditTender(id) {
   document.getElementById('f_reminder_status').value = t.reminder_status || 'Active';
   updateAssignedToLock();
   onSubmissionRouteChange();
+  onEvaluationStatusChange();
   onBidPrepStageChange();
   onSubmissionTypeChange();
 
@@ -2322,6 +2402,10 @@ async function openEditTender(id) {
   // Documents
   renderDocuments(t.documents || []);
 
+  // Clarifications, Briefings & Amendments
+  currentClarifications = t.clarifications || [];
+  renderClarifications(currentClarifications);
+
   // History
   renderHistory(t.status_history || []);
 
@@ -2334,6 +2418,8 @@ function resetForm() {
   inputs.forEach(el => { el.value = ''; }); // readonly fields (legal entity, ledger status, etc.) are re-derived, not user-typed
   document.getElementById('contactsContainer').innerHTML = '';
   document.getElementById('docsContainer').innerHTML = '';
+  document.getElementById('clarificationsContainer').innerHTML = '';
+  currentClarifications = [];
   document.getElementById('remarksHistory').innerHTML = '<div style="font-size:13px;font-weight:600;color:var(--muted);margin-bottom:10px">Remark History</div>';
   document.getElementById('historyContainer').innerHTML = '';
   document.getElementById('f_new_remark').value = '';
@@ -2407,6 +2493,11 @@ async function saveTender() {
   if (bidPrepStage && bidPrepStage !== 'Completed' && !getString('bid_preparation_remarks')) {
     toast('Bid Preparation Remarks are required while the stage is not Completed', 'error'); return;
   }
+  const evalStatus = getString('evaluation_status');
+  if (bidPrepStage && bidPrepStage !== 'Not Started' && evalStatus && evalStatus !== 'Participate') {
+    toast('Bid Preparation cannot proceed while Evaluation Status is "' + evalStatus + '" — set it to Participate first', 'error');
+    return;
+  }
   if (resultStatus === 'Won') {
     const clientType = getString('client_type');
     if (!clientType) { toast('Client Type (New / Existing) is required for Won tenders', 'error'); return; }
@@ -2463,6 +2554,9 @@ async function saveTender() {
     tender_reference_id: getString('tender_reference_id'),
     global_client_name: getString('global_client_name'),
     nca_erv: getString('nca_erv'),
+    evaluation_status: evalStatus,
+    clarification_due_date: getString('clarification_due_date'),
+    evaluation_remarks: getString('evaluation_remarks'),
     bid_description: getString('bid_description'),
     commodity_type: getString('commodity_type'),
     potential_amount_usd: getNum('potential_amount_usd'),
@@ -2535,6 +2629,7 @@ async function saveTender() {
     potential_start_date: getString('potential_start_date'),
     potential_end_date: getString('potential_end_date'),
     contacts: collectContacts(),
+    clarifications: currentClarifications,
     updated_at: firebase.firestore.FieldValue.serverTimestamp(),
     updated_by: currentUser.uid,
     updated_by_name: currentUser.displayName || currentUser.email,
@@ -2739,6 +2834,36 @@ function renderRemarks(history, current) {
   });
 }
 
+// ── Clarifications, Briefings & Amendments ─────────────────────
+function renderClarifications(list) {
+  const c = document.getElementById('clarificationsContainer');
+  if (!list.length) { c.innerHTML = '<div style="color:var(--muted);font-size:13px">No clarifications, briefings or amendments logged yet.</div>'; return; }
+  c.innerHTML = list.map(entry => `
+    <div class="remark-entry">
+      <div><b>${esc(entry.type)}</b>${entry.date ? ' · ' + esc(entry.date) : ''}${entry.by ? ' · ' + esc(entry.by) : ''}</div>
+      <div style="margin-top:4px">${esc(entry.description)}</div>
+      ${entry.outcome ? `<div style="margin-top:4px;color:var(--muted)">Outcome: ${esc(entry.outcome)}</div>` : ''}
+      <div class="remark-meta">logged by ${esc(entry.logged_by)} · ${fmt(entry.logged_at)}</div>
+    </div>`).join('');
+}
+
+function addClarificationEntry() {
+  const type = document.getElementById('cl_type').value;
+  const description = document.getElementById('cl_description').value.trim();
+  if (!type || !description) { toast('Type and Description are required to log an entry', 'error'); return; }
+  currentClarifications = [{
+    type,
+    date: document.getElementById('cl_date').value,
+    by: document.getElementById('cl_by').value.trim(),
+    description,
+    outcome: document.getElementById('cl_outcome').value.trim(),
+    logged_by: currentUser.displayName || currentUser.email,
+    logged_at: new Date().toISOString()
+  }, ...currentClarifications];
+  renderClarifications(currentClarifications);
+  ['cl_type','cl_date','cl_by','cl_description','cl_outcome'].forEach(id => document.getElementById(id).value = '');
+}
+
 // ── History ───────────────────────────────────────────────────
 function renderHistory(history) {
   const c = document.getElementById('historyContainer');
@@ -2817,6 +2942,11 @@ async function loadBranchesIntoSelects() {
   const snap = await db.collection('branches').where('active','==',true).get();
   branches = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
+  // Branch-scoped roles only ever pick among the branches they're assigned to.
+  const restricted = BRANCH_SCOPED_ROLES.includes(currentUserProfile?.role);
+  const mine = new Set(myBranchCodes());
+  const options = restricted ? branches.filter(b => mine.has(b.id)) : branches;
+
   const selects = ['f_branch_code', 'filterBranch'];
   selects.forEach(id => {
     const el = document.getElementById(id);
@@ -2824,7 +2954,7 @@ async function loadBranchesIntoSelects() {
     const firstOpt = el.options[0];
     el.innerHTML = '';
     el.appendChild(firstOpt);
-    branches.forEach(b => {
+    options.forEach(b => {
       const o = document.createElement('option');
       o.value = b.id; o.textContent = b.id + (b.city ? ' — ' + b.city : '');
       el.appendChild(o);
@@ -2879,6 +3009,17 @@ function onBidPrepStageChange() {
   const stage = document.getElementById('f_bid_preparation_stage')?.value;
   const reqMark = document.getElementById('bidPrepRemarksReq');
   if (reqMark) reqMark.style.display = (stage && stage !== 'Completed') ? '' : 'none';
+}
+
+// Warns that Bid Preparation is gated behind the Evaluation decision; saveTender()
+// enforces it. A blank Evaluation Status (every tender saved before this field
+// existed) is never gated, so historical tenders are unaffected by the gate.
+function onEvaluationStatusChange() {
+  const status = document.getElementById('f_evaluation_status')?.value;
+  const note = document.getElementById('evalGateNote');
+  if (!note) return;
+  const gated = !!status && status !== 'Participate';
+  note.textContent = gated ? 'Bid Preparation cannot be saved past "Not Started" until this is set to "Participate".' : '';
 }
 
 // ── Post-Submission Result & Ledger Control ────────────────────
@@ -3009,10 +3150,9 @@ async function loadMasters() {
         </select>` : `<span class="role-badge role-${u.role}">${ROLE_LABELS[u.role]||u.role}</span>`}
       </td>
       <td>
-        ${canManageMasters() ? `<select class="form-control" style="padding:4px;font-size:12px" onchange="updateUserBranch('${d.id}',this.value)">
-          <option value="">—</option>
-          ${branches.map(b => `<option ${u.branch_code===b.id?'selected':''} value="${b.id}">${b.id}</option>`).join('')}
-        </select>` : (u.branch_code||'—')}
+        ${canManageMasters() ? `<select class="form-control" multiple size="3" style="padding:4px;font-size:12px;min-width:110px" onchange="updateUserBranches('${d.id}',this)">
+          ${branches.map(b => `<option ${myBranchCodes(u).includes(b.id)?'selected':''} value="${b.id}">${b.id}</option>`).join('')}
+        </select>` : (myBranchCodes(u).join(', ')||'—')}
       </td>
       <td>${u.active ? '✅' : '❌'}</td>
       <td><button class="btn btn-outline btn-sm" onclick="toggleActive('users','${d.id}',${u.active})">Toggle</button></td>
@@ -3094,10 +3234,12 @@ async function updateUserRole(uid, role) {
   await db.collection('users').doc(uid).update({ role });
   toast('Role updated', 'success');
 }
-async function updateUserBranch(uid, branch) {
+async function updateUserBranches(uid, selectEl) {
   if (!canManageMasters()) return;
-  await db.collection('users').doc(uid).update({ branch_code: branch });
-  toast('Branch updated', 'success');
+  const codes = Array.from(selectEl.selectedOptions).map(o => o.value);
+  // branch_code is kept as the first selected branch so older code that still reads it keeps working.
+  await db.collection('users').doc(uid).update({ branch_codes: codes, branch_code: codes[0] || '' });
+  toast('Branch assignment updated', 'success');
 }
 async function toggleActive(col, id, current) {
   if (!canManageMasters()) return;

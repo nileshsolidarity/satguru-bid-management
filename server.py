@@ -183,6 +183,7 @@ def bid_generate():
     """Generate bid section content using Vertex AI Gemini 2.5 Flash."""
     body = request.get_json(force=True)
     section = body.get("section", "")
+    section_title = body.get("section_title", section)
     context = body.get("context", {})  # tender details
     rfp_text = body.get("rfp_text", "")
 
@@ -194,44 +195,73 @@ MICE (Meetings, Incentives, Conferences & Events), Car Rentals, Travel Insurance
 IATA accredited. ISO certified. Managed travel for government entities, NGOs, and Fortune 500 companies.
 """
 
+    # Branch/Provision context and any Content/Document Library entries the page matched
+    # for this bid — all of this comes from the user's own saved data, never invented here.
+    branch_name = context.get("branch_name", "")
+    legal_entity = context.get("legal_entity", "")
+    provision = context.get("provision", "")
+    content_snippets = context.get("content_snippets", []) or []
+    references = context.get("references", []) or []
+
+    extra_context = ""
+    branch_bits = [b for b in [
+        branch_name and f"Branch: {branch_name}",
+        legal_entity and f"Legal Entity: {legal_entity}",
+        provision and f"Provision/Service: {provision}",
+    ] if b]
+    if branch_bits:
+        extra_context += "\nBranch/provision context for this bid: " + ", ".join(branch_bits) + "."
+    if content_snippets:
+        blocks = "\n".join(f"- {s.get('title','')}: {s.get('content','')}" for s in content_snippets)
+        extra_context += f"\nUse this company-approved content where relevant (do not contradict it):\n{blocks}"
+    if references:
+        ref_names = ", ".join(r.get("name", "") for r in references if r.get("name"))
+        if ref_names:
+            extra_context += f"\nRelevant certificates/reference letters on file (you may mention they exist; do not fabricate their details): {ref_names}."
+
     section_prompts = {
         "cover_letter": f"""Write a professional bid cover letter for a travel management tender.
 Client: {context.get('client','')}. Tender Reference: {context.get('reference','')}. Bid Type: {context.get('bid_type','')}.
-Use Satguru Travel Group as the bidder. Keep it formal, confident, 3 paragraphs. Do not use placeholders.""",
+Use Satguru Travel Group as the bidder. Keep it formal, confident, 3 paragraphs. Do not use placeholders.{extra_context}""",
 
         "company_profile": f"""Write a company profile section for a bid proposal for {context.get('client','a client')}.
 Use this factual information about the company: {company_profile}
 Write 4-5 paragraphs covering: company overview, geographic presence, key services, experience, and why we are the right partner.
-Professional tone, no placeholders.""",
+Professional tone, no placeholders.{extra_context}""",
 
         "understanding": f"""Write an 'Understanding of Requirements' section for a tender bid.
 Client: {context.get('client','')}. Tender: {context.get('description','')}.
 RFP Key Points: {rfp_text or 'Not provided - write a general understanding for a travel management bid'}.
-Show deep understanding of the client's needs. 3-4 paragraphs. Professional tone.""",
+Show deep understanding of the client's needs. 3-4 paragraphs. Professional tone.{extra_context}""",
 
         "methodology": f"""Write a 'Proposed Methodology / Approach' section for a travel management bid.
 Client: {context.get('client','')}. Services required: {context.get('description','travel management services')}.
 Cover: account management structure, technology platform, reporting, SLA commitments, escalation process.
-4-5 paragraphs, professional and specific.""",
+4-5 paragraphs, professional and specific.{extra_context}""",
 
         "team": f"""Write a 'Key Personnel & Team Structure' section for a travel management bid for {context.get('client','')}.
 Include: Account Manager role, Operations Team, 24/7 support desk, regional coordinators.
-Describe the team structure and their responsibilities. 3 paragraphs. Professional tone. No actual names.""",
+Describe the team structure and their responsibilities. 3 paragraphs. Professional tone. No actual names.{extra_context}""",
 
         "compliance": f"""Write a 'Compliance & Regulatory' section for a travel management bid.
 Client: {context.get('client','')}. Cover: IATA accreditation, data protection / GDPR compliance,
 financial stability, insurance coverage, certifications, and regulatory compliance in relevant markets.
-2-3 paragraphs, factual and confident.""",
+2-3 paragraphs, factual and confident.{extra_context}""",
 
         "experience": f"""Write a 'Relevant Experience & Track Record' section for a travel management bid for {context.get('client','')}.
 Highlight Satguru's experience with: government/NGO accounts, large corporate travel programs,
 multi-country operations, volume handled. Mention types of clients (without naming specific companies).
-3-4 paragraphs. Professional.""",
+3-4 paragraphs. Professional.{extra_context}""",
     }
 
-    prompt = section_prompts.get(section)
-    if not prompt:
-        return jsonify({"error": f"Unknown section: {section}"}), 400
+    # A section added on the page itself (outside the fixed list above) still gets a
+    # real prompt, built from its own title rather than failing with "unknown section".
+    prompt = section_prompts.get(section) or f"""Write a '{section_title}' section for a travel management bid proposal.
+Client: {context.get('client','')}. Tender Reference: {context.get('reference','')}. Bid Type: {context.get('bid_type','')}.
+Services required: {context.get('description','travel management services')}.
+RFP Key Points: {rfp_text or 'Not provided'}.
+Company background: {company_profile}
+Write 3-4 professional paragraphs appropriate to a section titled '{section_title}'. No placeholders.{extra_context}"""
 
     try:
         import vertexai
@@ -337,18 +367,24 @@ def bid_export_docx():
 
         doc.add_page_break()
 
-        # ── Sections ──
-        section_order = [
-            ("cover_letter",    "Cover Letter"),
-            ("company_profile", "1. Company Profile"),
-            ("understanding",   "2. Understanding of Requirements"),
-            ("methodology",     "3. Proposed Methodology & Approach"),
-            ("experience",      "4. Relevant Experience"),
-            ("team",            "5. Key Personnel & Team Structure"),
-            ("compliance",      "6. Compliance & Regulatory"),
+        # ── Sections ── prefer the ordered list the page sends (reflects any
+        # reordering, renaming, or custom sections); fall back to the fixed
+        # order below only for a caller that hasn't picked up this change yet.
+        sections_ordered = body.get("sections_ordered") or [
+            {"title": title, "text": sections.get(key, "")}
+            for key, title in [
+                ("cover_letter",    "Cover Letter"),
+                ("company_profile", "1. Company Profile"),
+                ("understanding",   "2. Understanding of Requirements"),
+                ("methodology",     "3. Proposed Methodology & Approach"),
+                ("experience",      "4. Relevant Experience"),
+                ("team",            "5. Key Personnel & Team Structure"),
+                ("compliance",      "6. Compliance & Regulatory"),
+            ]
         ]
-        for key, title in section_order:
-            text = sections.get(key, "")
+        for item in sections_ordered:
+            title = item.get("title", "")
+            text = item.get("text", "")
             if not text:
                 continue
             add_heading(title, level=1)

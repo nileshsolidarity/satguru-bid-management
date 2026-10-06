@@ -4,7 +4,31 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Satguru — Bid Preparation</title>
+
+<!-- Firebase SDKs (compat) — same project as tenders.html, for Branch Master + Content/Document Library -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+
 <style>
+/* ── Login screen ── */
+#login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--navy) 0%,var(--navy2) 60%,var(--blue) 100%)}
+.login-card{background:white;border-radius:20px;padding:48px 40px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.3);width:380px}
+.login-logo{width:64px;height:64px;background:var(--red);border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:800;color:white;margin:0 auto 20px}
+.login-card h2{font-size:22px;font-weight:700;margin-bottom:6px}
+.login-card p{color:var(--muted);font-size:13px;margin-bottom:32px}
+.google-btn{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;padding:14px;border:2px solid var(--border);border-radius:10px;background:white;font-size:15px;font-weight:600;cursor:pointer;color:var(--text)}
+.google-btn:hover{border-color:var(--blue);background:#f8fafc}
+.google-btn svg{width:20px;height:20px}
+.login-note{margin-top:20px;font-size:12px;color:var(--muted)}
+.user-chip{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.1);border-radius:8px;padding:6px 12px}
+.user-avatar{width:28px;height:28px;border-radius:50%;background:var(--red);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:white;overflow:hidden}
+.user-avatar img{width:100%;height:100%;object-fit:cover}
+.user-name{font-size:13px;font-weight:600}
+.user-role{font-size:10px;opacity:.7}
+.signout-btn{background:rgba(255,255,255,.1);border:none;color:white;padding:7px 14px;border-radius:8px;cursor:pointer;font-size:12px}
+.signout-btn:hover{background:rgba(255,255,255,.2)}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
   --navy:#1a1a2e;--navy2:#16213e;--blue:#0f3460;--red:#e94560;
@@ -97,10 +121,46 @@ textarea.form-control{resize:vertical;min-height:100px;font-family:inherit}
 .progress-bar{height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin-bottom:16px}
 .progress-fill{height:100%;background:var(--red);border-radius:2px;transition:width .3s}
 
+/* Library rows */
+.lib-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px 20px;border-bottom:1px solid var(--border)}
+.lib-row:last-child{border-bottom:none}
+.lib-row-info{flex:1;min-width:0}
+.lib-row-title{font-size:13px;font-weight:700;color:var(--navy)}
+.lib-row-meta{font-size:11px;color:var(--muted);margin-top:3px}
+.lib-row-text{font-size:12px;color:var(--text);margin-top:6px;white-space:pre-wrap}
+.lib-tag{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:#eef2ff;color:#4338ca;text-transform:uppercase;letter-spacing:.3px}
+.lib-tag.expiring{background:#fef9c3;color:#854d0e}
+.lib-tag.expired{background:#fee2e2;color:#991b1b}
+.lib-actions{display:flex;gap:6px;flex-shrink:0}
+.lib-actions button{background:none;border:none;cursor:pointer;padding:4px 6px;border-radius:6px;color:var(--muted);font-size:13px}
+.lib-actions button:hover{background:var(--bg);color:var(--red)}
+
 @media(max-width:900px){.page-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
+
+<!-- ══════════════════ LOGIN SCREEN ══════════════════ -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">S</div>
+    <h2>Satguru Bid Management</h2>
+    <p>Bid Preparation Assistant<br>Sign in with your @satgurutravel.com account</p>
+    <button class="google-btn" onclick="signInWithGoogle()">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+      </svg>
+      Sign in with Google
+    </button>
+    <p class="login-note">Use your satgurutravel.com email address</p>
+  </div>
+</div>
+
+<!-- ══════════════════ MAIN APP ══════════════════ -->
+<div id="app" style="display:none">
 
 <div class="header">
   <div style="display:flex;align-items:center;gap:14px">
@@ -113,12 +173,22 @@ textarea.form-control{resize:vertical;min-height:100px;font-family:inherit}
   <div class="header-right">
     <a href="tenders.html" class="nav-btn">← Bid Management</a>
     <a href="tender-tracker.html" class="nav-btn">Portal Tracker</a>
+    <div class="user-chip">
+      <div class="user-avatar" id="userAvatar">?</div>
+      <div>
+        <div class="user-name" id="userName">Loading...</div>
+        <div class="user-role" id="userRoleLabel">—</div>
+      </div>
+    </div>
+    <button class="signout-btn" onclick="signOut()">Sign Out</button>
   </div>
 </div>
 
 <div class="tabs-bar">
   <button class="tab-btn active" onclick="switchTab('technical')">📄 Technical Proposal</button>
   <button class="tab-btn" onclick="switchTab('financial')">💰 Financial Proposal</button>
+  <button class="tab-btn" onclick="switchTab('library')">📚 Content Library</button>
+  <button class="tab-btn" onclick="switchTab('documents')">📁 Documents & References</button>
 </div>
 
 <div id="tab-technical" class="tab-content active">
@@ -147,6 +217,22 @@ textarea.form-control{resize:vertical;min-height:100px;font-family:inherit}
             <label>Services Required</label>
             <input class="form-control" id="t_services" placeholder="e.g. Corporate Travel Management, Air Ticketing, Hotels"/>
           </div>
+          <div class="form-group">
+            <label>Branch</label>
+            <select class="form-control" id="t_branch" onchange="onBranchChange()"><option value="">— Select Branch —</option></select>
+          </div>
+          <div class="form-group">
+            <label>Legal Entity (Auto)</label>
+            <input class="form-control" id="t_legal_entity" readonly placeholder="Auto-fills from selected branch"/>
+          </div>
+          <div class="form-group">
+            <label>Provision / Service</label>
+            <select class="form-control" id="t_provision">
+              <option value="">— Select —</option>
+              <option>Air</option><option>Non Air</option><option>Air & Non Air</option><option>Car</option><option>Hotel</option><option>Cargo</option><option>MICE</option><option>Visa</option><option>Accommodation & Conference</option>
+            </select>
+            <span style="font-size:11px;color:var(--muted)">Matches Content Library entries tagged to this Provision into the generated sections</span>
+          </div>
         </div>
       </div>
 
@@ -172,106 +258,11 @@ textarea.form-control{resize:vertical;min-height:100px;font-family:inherit}
 
     <!-- Right: Sections -->
     <div>
-      <div style="font-size:13px;font-weight:600;color:var(--muted);margin-bottom:14px;text-transform:uppercase;letter-spacing:.5px">Proposal Sections</div>
-
-      <!-- Cover Letter -->
-      <div class="section-card" id="sec_cover_letter">
-        <div class="section-header" onclick="toggleSection('cover_letter')">
-          <div class="section-title">Cover Letter</div>
-          <div style="display:flex;gap:10px;align-items:center">
-            <span class="section-status status-empty" id="status_cover_letter">Not generated</span>
-            <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();generateSection('cover_letter')" id="btn_cover_letter">Generate</button>
-          </div>
-        </div>
-        <div class="section-body" id="body_cover_letter">
-          <textarea class="form-control preview-text" id="text_cover_letter" rows="10" placeholder="Click Generate to create content with AI..."></textarea>
-        </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div style="font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Proposal Sections</div>
+        <button class="btn btn-outline btn-sm" onclick="addSection()">+ Add Section</button>
       </div>
-
-      <!-- Company Profile -->
-      <div class="section-card" id="sec_company_profile">
-        <div class="section-header" onclick="toggleSection('company_profile')">
-          <div class="section-title">1. Company Profile</div>
-          <div style="display:flex;gap:10px;align-items:center">
-            <span class="section-status status-empty" id="status_company_profile">Not generated</span>
-            <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();generateSection('company_profile')" id="btn_company_profile">Generate</button>
-          </div>
-        </div>
-        <div class="section-body" id="body_company_profile">
-          <textarea class="form-control" id="text_company_profile" rows="12" placeholder="Click Generate to create content with AI..."></textarea>
-        </div>
-      </div>
-
-      <!-- Understanding -->
-      <div class="section-card" id="sec_understanding">
-        <div class="section-header" onclick="toggleSection('understanding')">
-          <div class="section-title">2. Understanding of Requirements</div>
-          <div style="display:flex;gap:10px;align-items:center">
-            <span class="section-status status-empty" id="status_understanding">Not generated</span>
-            <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();generateSection('understanding')" id="btn_understanding">Generate</button>
-          </div>
-        </div>
-        <div class="section-body" id="body_understanding">
-          <textarea class="form-control" id="text_understanding" rows="12" placeholder="Click Generate to create content with AI..."></textarea>
-        </div>
-      </div>
-
-      <!-- Methodology -->
-      <div class="section-card" id="sec_methodology">
-        <div class="section-header" onclick="toggleSection('methodology')">
-          <div class="section-title">3. Proposed Methodology & Approach</div>
-          <div style="display:flex;gap:10px;align-items:center">
-            <span class="section-status status-empty" id="status_methodology">Not generated</span>
-            <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();generateSection('methodology')" id="btn_methodology">Generate</button>
-          </div>
-        </div>
-        <div class="section-body" id="body_methodology">
-          <textarea class="form-control" id="text_methodology" rows="12" placeholder="Click Generate to create content with AI..."></textarea>
-        </div>
-      </div>
-
-      <!-- Experience -->
-      <div class="section-card" id="sec_experience">
-        <div class="section-header" onclick="toggleSection('experience')">
-          <div class="section-title">4. Relevant Experience</div>
-          <div style="display:flex;gap:10px;align-items:center">
-            <span class="section-status status-empty" id="status_experience">Not generated</span>
-            <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();generateSection('experience')" id="btn_experience">Generate</button>
-          </div>
-        </div>
-        <div class="section-body" id="body_experience">
-          <textarea class="form-control" id="text_experience" rows="12" placeholder="Click Generate to create content with AI..."></textarea>
-        </div>
-      </div>
-
-      <!-- Team -->
-      <div class="section-card" id="sec_team">
-        <div class="section-header" onclick="toggleSection('team')">
-          <div class="section-title">5. Key Personnel & Team</div>
-          <div style="display:flex;gap:10px;align-items:center">
-            <span class="section-status status-empty" id="status_team">Not generated</span>
-            <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();generateSection('team')" id="btn_team">Generate</button>
-          </div>
-        </div>
-        <div class="section-body" id="body_team">
-          <textarea class="form-control" id="text_team" rows="12" placeholder="Click Generate to create content with AI..."></textarea>
-        </div>
-      </div>
-
-      <!-- Compliance -->
-      <div class="section-card" id="sec_compliance">
-        <div class="section-header" onclick="toggleSection('compliance')">
-          <div class="section-title">6. Compliance & Regulatory</div>
-          <div style="display:flex;gap:10px;align-items:center">
-            <span class="section-status status-empty" id="status_compliance">Not generated</span>
-            <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();generateSection('compliance')" id="btn_compliance">Generate</button>
-          </div>
-        </div>
-        <div class="section-body" id="body_compliance">
-          <textarea class="form-control" id="text_compliance" rows="12" placeholder="Click Generate to create content with AI..."></textarea>
-        </div>
-      </div>
-
+      <div id="sectionsContainer"></div>
     </div>
   </div>
 </div>
@@ -404,10 +395,206 @@ textarea.form-control{resize:vertical;min-height:100px;font-family:inherit}
   </div>
 </div>
 
+<!-- ── CONTENT LIBRARY ── -->
+<div id="tab-library" class="tab-content">
+  <div class="page-grid">
+    <div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">Add Content Block</div></div>
+        <div class="card-body">
+          <div class="form-group">
+            <label>Scope *</label>
+            <select class="form-control" id="cl_scope" onchange="onContentScopeChange()">
+              <option value="General">General — used for every proposal</option>
+              <option value="Provision">Provision-specific</option>
+              <option value="Branch">Branch-specific</option>
+            </select>
+          </div>
+          <div class="form-group" id="cl_provision_group" style="display:none">
+            <label>Provision / Service *</label>
+            <select class="form-control" id="cl_provision">
+              <option value="">— Select —</option>
+              <option>Air</option><option>Non Air</option><option>Air & Non Air</option><option>Car</option><option>Hotel</option><option>Cargo</option><option>MICE</option><option>Visa</option><option>Accommodation & Conference</option>
+            </select>
+          </div>
+          <div class="form-group" id="cl_branch_group" style="display:none">
+            <label>Branch *</label>
+            <select class="form-control" id="cl_branch"><option value="">— Select Branch —</option></select>
+          </div>
+          <div class="form-group">
+            <label>Title *</label>
+            <input class="form-control" id="cl_title" placeholder="e.g. Government & NGO account experience"/>
+          </div>
+          <div class="form-group">
+            <label>Content *</label>
+            <textarea class="form-control" id="cl_content" rows="8" placeholder="Reusable proposal text the AI can draw on when writing a matching section..."></textarea>
+          </div>
+          <button class="btn btn-primary" onclick="saveContentEntry()" style="width:100%">+ Save to Library</button>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Library Entries</div>
+          <span style="font-size:11px;color:var(--muted)" id="libraryCount"></span>
+        </div>
+        <div class="card-body" style="padding:0" id="contentLibraryBody">
+          <p style="padding:30px;text-align:center;color:var(--muted);font-size:13px">Loading…</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── DOCUMENTS & REFERENCES ── -->
+<div id="tab-documents" class="tab-content">
+  <div class="page-grid">
+    <div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">Add Document</div></div>
+        <div class="card-body">
+          <div class="form-group">
+            <label>Document Name *</label>
+            <input class="form-control" id="dc_name" placeholder="e.g. IATA Accreditation Certificate"/>
+          </div>
+          <div class="form-group">
+            <label>Category *</label>
+            <select class="form-control" id="dc_category">
+              <option>Certificate</option><option>License</option><option>Reference Letter</option><option>Insurance</option><option>Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Branch</label>
+            <select class="form-control" id="dc_branch"><option value="">— Company-wide (no branch) —</option></select>
+          </div>
+          <div class="form-group">
+            <label>Expiry Date</label>
+            <input type="date" class="form-control" id="dc_expiry"/>
+            <span style="font-size:11px;color:var(--muted)">Leave blank if it doesn't expire</span>
+          </div>
+          <div class="form-group">
+            <label>File *</label>
+            <input type="file" class="form-control" id="dc_file"/>
+          </div>
+          <button class="btn btn-primary" onclick="saveDocumentEntry()" style="width:100%">+ Upload to Library</button>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Documents & Reference Letters</div>
+          <span style="font-size:11px;color:var(--muted)" id="documentsCount"></span>
+        </div>
+        <div class="card-body" style="padding:0" id="documentsLibraryBody">
+          <p style="padding:30px;text-align:center;color:var(--muted);font-size:13px">Loading…</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="toast-wrap" id="toastWrap"></div>
 
+</div><!-- #app -->
+
 <script>
-const API = '';  // same origin
+// Same pattern as tender-tracker.html: on Vercel there is no same-origin /api route at
+// all (static hosting only), so AI generation and export must go to the Cloud Run backend.
+const IS_LOCAL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const API = IS_LOCAL ? '' : 'https://bid-management-backend-309310310208.us-central1.run.app';
+
+// ── Firebase (same project as tenders.html) ────────────────────
+const firebaseConfig = {
+  apiKey: "AIzaSyDTbvj5B1uwWxBVnPCjnVscodiB9Uyxdgw",
+  authDomain: "satguru-sales-intel.firebaseapp.com",
+  projectId: "satguru-sales-intel",
+  storageBucket: "satguru-sales-intel.firebasestorage.app",
+  messagingSenderId: "309310310208",
+  appId: "1:309310310208:web:51f3a7878014c2108f1ca5"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+const storage = firebase.storage();
+
+let currentUser = null;
+let currentUserProfile = null;
+let branches = [];
+let contentLibrary = [];
+let documentLibrary = [];
+
+const ROLE_LABELS = { admin: 'System Admin', bidmanager: 'Bid Manager', branchrep: 'Branch Bid Representative', spoc: 'Branch SPOC / Marketing', finance: 'Finance User', branchmanager: 'Branch Manager', management: 'Management User', readonly: 'Read Only' };
+function canManageLibrary() { return ['admin', 'bidmanager'].includes(currentUserProfile?.role); }
+// Same roles tenders.html lets create/edit a tender — bid prep is part of that same workflow.
+function canPrepareBids() { return ['admin', 'bidmanager', 'branchrep'].includes(currentUserProfile?.role); }
+
+function signInWithGoogle() {
+  const provider = new firebase.auth.GoogleAuthProvider();
+  provider.setCustomParameters({ hd: 'satgurutravel.com' });
+  auth.signInWithPopup(provider).catch(e => toast('Login failed: ' + e.message, 'error'));
+}
+function signOut() {
+  if (confirm('Sign out?')) auth.signOut();
+}
+async function ensureUserProfile(user) {
+  const ref = db.collection('users').doc(user.uid);
+  const snap = await ref.get();
+  if (!snap.exists) {
+    // A brand-new sign-in here defaults to readonly, same as tenders.html — an Admin
+    // promotes them from the Masters tab there once they need to create/edit bids.
+    const newProfile = { email: user.email, name: user.displayName || user.email, role: 'readonly', branch_code: '', branch_codes: [], active: true, created_at: firebase.firestore.FieldValue.serverTimestamp() };
+    await ref.set(newProfile);
+    currentUserProfile = newProfile;
+  } else {
+    currentUserProfile = snap.data();
+  }
+}
+
+auth.onAuthStateChanged(async user => {
+  if (user) {
+    currentUser = user;
+    await ensureUserProfile(user);
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    const av = document.getElementById('userAvatar');
+    if (user.photoURL) av.innerHTML = `<img src="${user.photoURL}"/>`;
+    else av.textContent = (user.displayName || 'U').charAt(0).toUpperCase();
+    document.getElementById('userName').textContent = user.displayName || user.email;
+    document.getElementById('userRoleLabel').textContent = ROLE_LABELS[currentUserProfile?.role] || 'User';
+    await loadBranchesIntoSelects();
+    await loadContentLibrary();
+    await loadDocumentLibrary();
+  } else {
+    currentUser = null;
+    currentUserProfile = null;
+    document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('app').style.display = 'none';
+  }
+});
+
+async function loadBranchesIntoSelects() {
+  const snap = await db.collection('branches').where('active', '==', true).get();
+  branches = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  ['t_branch', 'cl_branch', 'dc_branch'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const firstOpt = el.options[0];
+    el.innerHTML = '';
+    el.appendChild(firstOpt);
+    branches.forEach(b => {
+      const o = document.createElement('option');
+      o.value = b.id; o.textContent = b.id + (b.city ? ' — ' + b.city : '');
+      el.appendChild(o);
+    });
+  });
+}
+
+function onBranchChange() {
+  const b = branches.find(x => x.id === document.getElementById('t_branch')?.value);
+  document.getElementById('t_legal_entity').value = b?.legal_entity || '';
+}
 
 // ── Tab switching ─────────────────────────────────────────────
 function switchTab(name) {
@@ -415,68 +602,302 @@ function switchTab(name) {
   document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
   document.querySelector(`.tab-btn[onclick="switchTab('${name}')"]`).classList.add('active');
+  if (name === 'library') renderContentLibrary();
+  if (name === 'documents') renderDocumentLibrary();
 }
 
-// ── Technical: Section toggle ─────────────────────────────────
+// ── Content Library ───────────────────────────────────────────
+function onContentScopeChange() {
+  const scope = document.getElementById('cl_scope').value;
+  document.getElementById('cl_provision_group').style.display = scope === 'Provision' ? '' : 'none';
+  document.getElementById('cl_branch_group').style.display = scope === 'Branch' ? '' : 'none';
+}
+
+async function loadContentLibrary() {
+  try {
+    const snap = await db.collection('content_library').orderBy('created_at', 'desc').get();
+    contentLibrary = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (e) { console.error('loadContentLibrary', e); }
+}
+
+function renderContentLibrary() {
+  const body = document.getElementById('contentLibraryBody');
+  document.getElementById('libraryCount').textContent = contentLibrary.length + ' entries';
+  if (!contentLibrary.length) {
+    body.innerHTML = '<p style="padding:30px;text-align:center;color:var(--muted);font-size:13px">No content blocks yet — add one on the left so the AI can draw on it.</p>';
+    return;
+  }
+  body.innerHTML = contentLibrary.map(c => `
+    <div class="lib-row">
+      <div class="lib-row-info">
+        <span class="lib-tag">${c.scope}${c.scope === 'Provision' ? ': ' + esc(c.provision) : c.scope === 'Branch' ? ': ' + esc(c.branch_code) : ''}</span>
+        <div class="lib-row-title" style="margin-top:6px">${esc(c.title)}</div>
+        <div class="lib-row-text">${esc((c.content || '').slice(0, 220))}${(c.content || '').length > 220 ? '…' : ''}</div>
+      </div>
+      ${canManageLibrary() ? `<div class="lib-actions"><button onclick="deleteContentEntry('${c.id}')" title="Delete">🗑️</button></div>` : ''}
+    </div>`).join('');
+}
+
+async function saveContentEntry() {
+  if (!canManageLibrary()) { toast('Admin or Bid Manager access required', 'error'); return; }
+  const scope = document.getElementById('cl_scope').value;
+  const title = document.getElementById('cl_title').value.trim();
+  const content = document.getElementById('cl_content').value.trim();
+  const provision = document.getElementById('cl_provision').value;
+  const branch_code = document.getElementById('cl_branch').value;
+  if (!title || !content) { toast('Title and Content are required', 'error'); return; }
+  if (scope === 'Provision' && !provision) { toast('Select a Provision / Service', 'error'); return; }
+  if (scope === 'Branch' && !branch_code) { toast('Select a Branch', 'error'); return; }
+  try {
+    await db.collection('content_library').add({
+      scope, title, content,
+      provision: scope === 'Provision' ? provision : '',
+      branch_code: scope === 'Branch' ? branch_code : '',
+      created_by: currentUser.displayName || currentUser.email,
+      created_at: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    document.getElementById('cl_title').value = '';
+    document.getElementById('cl_content').value = '';
+    toast('Saved to Content Library', 'success');
+    await loadContentLibrary();
+    renderContentLibrary();
+  } catch (e) { toast('Error saving: ' + e.message, 'error'); }
+}
+
+async function deleteContentEntry(id) {
+  if (!canManageLibrary()) return;
+  if (!confirm('Delete this content block?')) return;
+  await db.collection('content_library').doc(id).delete();
+  await loadContentLibrary();
+  renderContentLibrary();
+}
+
+// ── Documents & References Library ──────────────────────────────
+async function loadDocumentLibrary() {
+  try {
+    const snap = await db.collection('branch_documents').orderBy('created_at', 'desc').get();
+    documentLibrary = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (e) { console.error('loadDocumentLibrary', e); }
+}
+
+function docExpiryTag(expiry) {
+  if (!expiry) return '';
+  const days = Math.ceil((new Date(expiry) - new Date()) / 86400000);
+  if (days < 0) return `<span class="lib-tag expired">Expired ${esc(expiry)}</span>`;
+  if (days <= 60) return `<span class="lib-tag expiring">Expires ${esc(expiry)}</span>`;
+  return `<span class="lib-tag">Expires ${esc(expiry)}</span>`;
+}
+
+function renderDocumentLibrary() {
+  const body = document.getElementById('documentsLibraryBody');
+  document.getElementById('documentsCount').textContent = documentLibrary.length + ' documents';
+  if (!documentLibrary.length) {
+    body.innerHTML = '<p style="padding:30px;text-align:center;color:var(--muted);font-size:13px">No documents uploaded yet.</p>';
+    return;
+  }
+  body.innerHTML = documentLibrary.map(d => `
+    <div class="lib-row">
+      <div class="lib-row-info">
+        <span class="lib-tag">${esc(d.category)}</span> ${d.branch_code ? `<span class="lib-tag">${esc(d.branch_code)}</span>` : ''} ${docExpiryTag(d.expiry_date)}
+        <div class="lib-row-title" style="margin-top:6px"><a href="${d.url}" target="_blank" style="color:inherit;text-decoration:none">${esc(d.name)}</a></div>
+        <div class="lib-row-meta">Uploaded by ${esc(d.created_by)}</div>
+      </div>
+      <div class="lib-actions">
+        <a href="${d.url}" target="_blank" title="Download" style="text-decoration:none;color:var(--muted);padding:4px 6px">⬇</a>
+        ${canManageLibrary() ? `<button onclick="deleteDocumentEntry('${d.id}')" title="Delete">🗑️</button>` : ''}
+      </div>
+    </div>`).join('');
+}
+
+async function saveDocumentEntry() {
+  if (!canManageLibrary()) { toast('Admin or Bid Manager access required', 'error'); return; }
+  const name = document.getElementById('dc_name').value.trim();
+  const category = document.getElementById('dc_category').value;
+  const branch_code = document.getElementById('dc_branch').value;
+  const expiry_date = document.getElementById('dc_expiry').value;
+  const fileInput = document.getElementById('dc_file');
+  const file = fileInput.files[0];
+  if (!name || !file) { toast('Document Name and File are required', 'error'); return; }
+  if (file.size > 10 * 1024 * 1024) { toast('File exceeds 10MB', 'error'); return; }
+  try {
+    const path = `bid_prep_documents/${Date.now()}_${file.name}`;
+    const ref = storage.ref(path);
+    await ref.put(file);
+    const url = await ref.getDownloadURL();
+    await db.collection('branch_documents').add({
+      name, category, branch_code, expiry_date, url,
+      created_by: currentUser.displayName || currentUser.email,
+      created_at: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    document.getElementById('dc_name').value = '';
+    document.getElementById('dc_expiry').value = '';
+    fileInput.value = '';
+    toast('Document uploaded', 'success');
+    await loadDocumentLibrary();
+    renderDocumentLibrary();
+  } catch (e) { toast('Upload failed: ' + e.message, 'error'); }
+}
+
+async function deleteDocumentEntry(id) {
+  if (!canManageLibrary()) return;
+  if (!confirm('Delete this document?')) return;
+  await db.collection('branch_documents').doc(id).delete();
+  await loadDocumentLibrary();
+  renderDocumentLibrary();
+}
+
+// ── Technical: Sections (dynamic — add/rename/reorder/delete) ──
+let sections = [
+  { key: 'cover_letter', title: 'Cover Letter' },
+  { key: 'company_profile', title: '1. Company Profile' },
+  { key: 'understanding', title: '2. Understanding of Requirements' },
+  { key: 'methodology', title: '3. Proposed Methodology & Approach' },
+  { key: 'experience', title: '4. Relevant Experience' },
+  { key: 'team', title: '5. Key Personnel & Team' },
+  { key: 'compliance', title: '6. Compliance & Regulatory' },
+];
+let sectionContent = {}; // key -> generated/edited text, survives re-renders
+let sectionStatus = {};  // key -> 'empty' | 'generating' | 'generated' | 'error'
+const STATUS_LABEL = { empty: 'Not generated', generating: 'Generating…', generated: 'Generated ✓', error: 'Error' };
+
+function renderSections() {
+  document.getElementById('sectionsContainer').innerHTML = sections.map((s, i) => {
+    const st = sectionStatus[s.key] || 'empty';
+    return `
+    <div class="section-card" id="sec_${s.key}">
+      <div class="section-header" onclick="toggleSection('${s.key}')">
+        <div class="section-title">${esc(s.title)}</div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <span class="section-status status-${st === 'error' ? 'empty' : st}" id="status_${s.key}">${STATUS_LABEL[st]}</span>
+          <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();generateSection('${s.key}')" id="btn_${s.key}">${sectionContent[s.key] ? 'Regenerate' : 'Generate'}</button>
+          <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();renameSection(${i})" title="Rename">✏️</button>
+          <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();moveSection(${i},-1)" title="Move up" ${i === 0 ? 'disabled' : ''}>↑</button>
+          <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();moveSection(${i},1)" title="Move down" ${i === sections.length - 1 ? 'disabled' : ''}>↓</button>
+          <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();removeSection(${i})" title="Remove">✕</button>
+        </div>
+      </div>
+      <div class="section-body" id="body_${s.key}">
+        <textarea class="form-control" id="text_${s.key}" rows="12" oninput="sectionContent['${s.key}']=this.value" placeholder="Click Generate to create content with AI...">${esc(sectionContent[s.key] || '')}</textarea>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function addSection() {
+  const title = prompt('New section title:', 'Additional Section');
+  if (!title || !title.trim()) return;
+  sections.push({ key: 'custom_' + Date.now(), title: title.trim() });
+  renderSections();
+}
+function renameSection(i) {
+  const title = prompt('Rename section:', sections[i].title);
+  if (!title || !title.trim()) return;
+  sections[i].title = title.trim();
+  renderSections();
+}
+function moveSection(i, dir) {
+  const j = i + dir;
+  if (j < 0 || j >= sections.length) return;
+  [sections[i], sections[j]] = [sections[j], sections[i]];
+  renderSections();
+}
+function removeSection(i) {
+  if (sections.length <= 1) { toast('At least one section is required', 'error'); return; }
+  if (!confirm(`Remove "${sections[i].title}"?`)) return;
+  const key = sections[i].key;
+  sections.splice(i, 1);
+  delete sectionContent[key];
+  delete sectionStatus[key];
+  renderSections();
+}
+
 function toggleSection(key) {
-  const body = document.getElementById('body_' + key);
-  body.classList.toggle('open');
+  document.getElementById('body_' + key).classList.toggle('open');
 }
-
 function openSection(key) {
   document.getElementById('body_' + key).classList.add('open');
 }
 
+// Content Library entries relevant to the selected Branch/Provision — passed to the
+// AI so a matching General/Provision/Branch block actually shapes the generated text.
+function gatherContentSnippets() {
+  const branch = document.getElementById('t_branch').value;
+  const provision = document.getElementById('t_provision').value;
+  return contentLibrary.filter(c =>
+    c.scope === 'General'
+    || (c.scope === 'Provision' && provision && c.provision === provision)
+    || (c.scope === 'Branch' && branch && c.branch_code === branch)
+  ).map(c => ({ title: c.title, content: c.content }));
+}
+function gatherReferences() {
+  const branch = document.getElementById('t_branch').value;
+  return documentLibrary
+    .filter(d => !branch || !d.branch_code || d.branch_code === branch)
+    .map(d => ({ name: d.name, category: d.category }));
+}
+
 // ── Technical: Generate section ───────────────────────────────
 async function generateSection(key) {
+  if (!canPrepareBids()) { toast('You do not have permission to prepare bids', 'error'); return; }
   const client = document.getElementById('t_client').value.trim();
   if (!client) { toast('Enter client name first', 'error'); return; }
 
+  const section = sections.find(s => s.key === key);
   const btn = document.getElementById('btn_' + key);
   const status = document.getElementById('status_' + key);
   const textarea = document.getElementById('text_' + key);
 
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span>';
-  status.textContent = 'Generating…';
+  sectionStatus[key] = 'generating';
+  status.textContent = STATUS_LABEL.generating;
   status.className = 'section-status status-generating';
   openSection(key);
 
   try {
-    const resp = await fetch('/api/bid/generate', {
+    const branchObj = branches.find(b => b.id === document.getElementById('t_branch').value);
+    const resp = await fetch(`${API}/api/bid/generate`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
         section: key,
+        section_title: section?.title || key,
         rfp_text: document.getElementById('t_rfp_text').value.trim(),
         context: {
           client,
           reference: document.getElementById('t_reference').value.trim(),
           bid_type: document.getElementById('t_bid_type').value,
           description: document.getElementById('t_services').value.trim(),
+          branch_name: branchObj ? (branchObj.id + (branchObj.city ? ' — ' + branchObj.city : '')) : '',
+          legal_entity: document.getElementById('t_legal_entity').value,
+          provision: document.getElementById('t_provision').value,
+          content_snippets: gatherContentSnippets(),
+          references: gatherReferences(),
         }
       })
     });
     const data = await resp.json();
     if (data.error) throw new Error(data.error);
     textarea.value = data.text;
-    status.textContent = 'Generated ✓';
+    sectionContent[key] = data.text;
+    sectionStatus[key] = 'generated';
+    status.textContent = STATUS_LABEL.generated;
     status.className = 'section-status status-generated';
     toast('Section generated', 'success');
   } catch (e) {
-    status.textContent = 'Error';
+    sectionStatus[key] = 'error';
+    status.textContent = STATUS_LABEL.error;
     status.className = 'section-status status-empty';
     toast('Error: ' + e.message, 'error');
   } finally {
     btn.disabled = false;
-    btn.innerHTML = 'Regenerate';
+    btn.innerHTML = sectionContent[key] ? 'Regenerate' : 'Generate';
   }
 }
 
 // ── Technical: Generate all ───────────────────────────────────
-const ALL_SECTIONS = ['cover_letter','company_profile','understanding','methodology','experience','team','compliance'];
-
 async function generateAll() {
+  if (!canPrepareBids()) { toast('You do not have permission to prepare bids', 'error'); return; }
   const client = document.getElementById('t_client').value.trim();
   if (!client) { toast('Enter client name first', 'error'); return; }
 
@@ -485,10 +906,10 @@ async function generateAll() {
   btn.innerHTML = '<span class="spinner"></span> Generating…';
   document.getElementById('progressBar').style.display = 'block';
 
-  for (let i = 0; i < ALL_SECTIONS.length; i++) {
-    const pct = Math.round((i / ALL_SECTIONS.length) * 100);
+  for (let i = 0; i < sections.length; i++) {
+    const pct = Math.round((i / sections.length) * 100);
     document.getElementById('progressFill').style.width = pct + '%';
-    await generateSection(ALL_SECTIONS[i]);
+    await generateSection(sections[i].key);
     await new Promise(r => setTimeout(r, 300));
   }
 
@@ -501,16 +922,21 @@ async function generateAll() {
 
 // ── Technical: Export Word ────────────────────────────────────
 async function exportTechnical() {
+  if (!canPrepareBids()) { toast('You do not have permission to prepare bids', 'error'); return; }
   const client = document.getElementById('t_client').value.trim();
   if (!client) { toast('Enter client name first', 'error'); return; }
 
-  const sections = {};
-  ALL_SECTIONS.forEach(k => {
-    const t = document.getElementById('text_' + k)?.value?.trim();
-    if (t) sections[k] = t;
+  const sectionsDict = {};
+  const sectionsOrdered = [];
+  sections.forEach(s => {
+    const t = document.getElementById('text_' + s.key)?.value?.trim();
+    if (t) {
+      sectionsDict[s.key] = t;
+      sectionsOrdered.push({ title: s.title, text: t });
+    }
   });
 
-  if (Object.keys(sections).length === 0) {
+  if (!sectionsOrdered.length) {
     toast('Generate at least one section before exporting', 'error'); return;
   }
 
@@ -519,7 +945,7 @@ async function exportTechnical() {
   btn.innerHTML = '<span class="spinner"></span> Building Word doc…';
 
   try {
-    const resp = await fetch('/api/bid/export-docx', {
+    const resp = await fetch(`${API}/api/bid/export-docx`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
@@ -529,7 +955,10 @@ async function exportTechnical() {
           reference: document.getElementById('t_reference').value.trim(),
           bid_type: document.getElementById('t_bid_type').value,
         },
-        sections
+        // sections: kept for an un-redeployed backend; sections_ordered is what a
+        // redeployed backend uses, so reordered/renamed/custom sections export correctly.
+        sections: sectionsDict,
+        sections_ordered: sectionsOrdered
       })
     });
     if (!resp.ok) throw new Error(await resp.text());
@@ -659,6 +1088,7 @@ function clearAllItems() {
 
 // ── Financial: Export Word ────────────────────────────────────
 async function exportFinancial() {
+  if (!canPrepareBids()) { toast('You do not have permission to prepare bids', 'error'); return; }
   const client = document.getElementById('f_client').value.trim();
   if (!client) { toast('Enter client name first', 'error'); return; }
   if (!lineItems.length) { toast('Add at least one line item', 'error'); return; }
@@ -668,7 +1098,7 @@ async function exportFinancial() {
   btn.innerHTML = '<span class="spinner"></span> Building…';
 
   try {
-    const resp = await fetch('/api/bid/export-docx', {
+    const resp = await fetch(`${API}/api/bid/export-docx`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
@@ -713,6 +1143,9 @@ function toast(msg, type='info') {
   wrap.appendChild(t);
   setTimeout(() => t.remove(), 4000);
 }
+
+// ── Init ──────────────────────────────────────────────────────
+renderSections();
 </script>
 </body>
 </html>

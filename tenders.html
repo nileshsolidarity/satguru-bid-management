@@ -1196,7 +1196,7 @@
           <div style="font-size:12px;color:var(--muted)">Users appear after first login. Assign roles below.</div>
         </div>
         <div class="card-body" style="padding:0">
-          <table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Branch</th><th>Active</th><th>Actions</th></tr></thead>
+          <table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Branch</th><th>TSR Editor</th><th>Active</th><th>Actions</th></tr></thead>
           <tbody id="masterUsers"></tbody></table>
         </div>
       </div>
@@ -1353,6 +1353,14 @@
             <option value="">All Bid Types</option>
             <option>RFP</option><option>RFQ</option><option>EOI</option><option>SR</option><option>Tender</option>
           </select>
+          <select id="rptProvision" class="form-control">
+            <option value="">All Provisions</option>
+            <option>Air</option><option>Non Air</option><option>Air & Non Air</option><option>Car</option><option>Hotel</option><option>Cargo</option><option>MICE</option><option>Visa</option><option>Accommodation & Conference</option>
+          </select>
+          <select id="rptSource" class="form-control">
+            <option value="">All Tender Sources</option>
+            <option>Branch</option><option>Portal</option><option>Email</option><option>Client Direct</option><option>Website</option>
+          </select>
         </div>
       </div>
     </div>
@@ -1377,6 +1385,7 @@
       <div style="display:flex;gap:10px;align-items:center">
         <input type="month" id="tsrPeriod" class="form-control" onchange="renderTsrTab()"/>
         <button class="btn btn-primary btn-sm" onclick="generateAllMissingTsr()">Generate All Missing</button>
+        <button class="btn btn-outline btn-sm" onclick="exportAllTsrCsv()">⬇ Download All (CSV)</button>
       </div>
     </div>
     <div class="table-wrap">
@@ -1606,6 +1615,7 @@ async function loadAllData() {
   await loadBranchesIntoSelects();
   renderBreakdownChart(); // country lives on the branch master, unavailable until now
   await loadLedgersIntoSelects();
+  await loadAllMarketingPersons();
   loadMasters();
   refreshDashboardTsr();
   // If came from portal tracker, open new tender form pre-filled
@@ -1714,6 +1724,39 @@ function isAlertRecipient(t, level) {
   if (level.tier >= 4 && ['branchrep', 'branchmanager'].includes(role) && myBranchCodes().includes(t.branch_code)) return true;
   return false;
 }
+// Branch SPOCs don't have a system login, so a critical (tier 4) alert can't just
+// show up in their own bell icon — this gives the system user who DOES see it a
+// one-click way to notify the SPOC directly by email instead.
+let allMarketingPersons = [];
+async function loadAllMarketingPersons() {
+  try {
+    const snap = await db.collection('marketing_persons').where('active', '==', true).get();
+    allMarketingPersons = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (e) { console.error('loadAllMarketingPersons', e); }
+}
+function spocForBranch(branchCode) {
+  return allMarketingPersons.find(m => m.branch_code === branchCode && m.email);
+}
+function spocAlertMailto(t, level, spoc) {
+  const subject = `Action needed: ${t.tender_unique_id || t.customer_name || 'Tender'} — ${level.label}`;
+  const body = `Hi ${spoc.name},\n\nThis is a "${level.label}" alert on a tender for your branch (${t.branch_code}):\n\n`
+    + `Tender: ${t.tender_unique_id || ''} — ${t.customer_name || ''}\n`
+    + `Bid Validity / Deadline: ${tenderValidityExpiry(t) || t.deadline || ''}\n\n`
+    + `Please action this as soon as possible.\n\n— Satguru Bid Management`;
+  return `mailto:${spoc.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+// Audit trail only — actually sending the email is the SPOC's own mail client, since
+// there's no mail-provider integration in this app to send it automatically.
+async function logSpocAlert(tenderId, branchCode, spocEmail) {
+  try {
+    await db.collection('spoc_alerts').add({
+      tender_id: tenderId, branch_code: branchCode, spoc_email: spocEmail,
+      triggered_by: currentUser.displayName || currentUser.email,
+      triggered_at: new Date().toISOString()
+    });
+  } catch (e) { console.error('logSpocAlert', e); }
+}
+
 function getMyAlerts() {
   const items = [];
   activeAlerts().forEach(a => {
@@ -1739,15 +1782,20 @@ function renderAlertsPanel() {
   badge.style.display = mine.length ? 'flex' : 'none';
   badge.textContent = mine.length;
   panel.innerHTML = mine.length
-    ? `<div class="alerts-head">Alerts (${mine.length})</div>` + mine.map(a => `
-        <div class="alert-row" onclick="closeAlertsPanel();openEditTender('${a.t.id}')">
+    ? `<div class="alerts-head">Alerts (${mine.length})</div>` + mine.map(a => {
+        const spoc = a.level.tier >= 4 ? spocForBranch(a.t.branch_code) : null;
+        const mailto = spoc ? spocAlertMailto(a.t, a.level, spoc) : null;
+        return `
+        <div class="alert-row">
           <span class="alert-dot tier-${a.level.tier}"></span>
-          <div class="alert-body">
+          <div class="alert-body" style="cursor:pointer" onclick="closeAlertsPanel();openEditTender('${a.t.id}')">
             <div class="alert-title">${esc(a.t.tender_unique_id || a.t.customer_name)}</div>
             <div class="alert-sub">${esc(a.subtitle)}</div>
           </div>
           <div class="alert-days">${alertDaysLabel(a.daysNum)}</div>
-        </div>`).join('')
+          ${mailto ? `<a href="${mailto}" title="Email Branch SPOC (${esc(spoc.email)}) — they don't need a system login" onclick="event.stopPropagation();logSpocAlert('${a.t.id}','${esc(a.t.branch_code)}','${esc(spoc.email)}')" style="flex-shrink:0;margin-left:4px;text-decoration:none;font-size:14px">✉️</a>` : ''}
+        </div>`;
+      }).join('')
     : `<div class="alerts-empty">No alerts 🎉</div>`;
 }
 function toggleAlertsPanel(e) {
@@ -3164,10 +3212,13 @@ async function loadMasters() {
           ${branches.map(b => `<option ${myBranchCodes(u).includes(b.id)?'selected':''} value="${b.id}">${b.id}</option>`).join('')}
         </select>` : (myBranchCodes(u).join(', ')||'—')}
       </td>
+      <td>
+        ${canManageMasters() ? `<input type="checkbox" ${u.tsr_editor?'checked':''} onchange="updateUserTsrEditor('${d.id}',this.checked)" title="Can edit TSR results for every branch, independent of their general role"/>` : (u.tsr_editor ? '✅' : '—')}
+      </td>
       <td>${u.active ? '✅' : '❌'}</td>
       <td><button class="btn btn-outline btn-sm" onclick="toggleActive('users','${d.id}',${u.active})">Toggle</button></td>
     </tr>`;
-  }).join('') || '<tr><td colspan="6" style="color:var(--muted);padding:20px">No users yet</td></tr>';
+  }).join('') || '<tr><td colspan="7" style="color:var(--muted);padding:20px">No users yet</td></tr>';
 
   // Clients
   const cSnap = await db.collection('clients').get();
@@ -3243,6 +3294,11 @@ async function updateUserRole(uid, role) {
   if (!canManageMasters()) return;
   await db.collection('users').doc(uid).update({ role });
   toast('Role updated', 'success');
+}
+async function updateUserTsrEditor(uid, checked) {
+  if (!canManageMasters()) return;
+  await db.collection('users').doc(uid).update({ tsr_editor: checked });
+  toast(checked ? 'Granted TSR editing for every branch' : 'Revoked TSR editing', 'success');
 }
 async function updateUserBranches(uid, selectEl) {
   if (!canManageMasters()) return;
@@ -3511,6 +3567,8 @@ function runReport() {
   const branch = document.getElementById('rptBranch').value;
   const rs = document.getElementById('rptResultStatus').value;
   const bt = document.getElementById('rptBidType').value;
+  const prov = document.getElementById('rptProvision').value;
+  const src = document.getElementById('rptSource').value;
 
   let data = [...allTenders];
   if (from) data = data.filter(t => (t.date_created||'') >= from);
@@ -3518,6 +3576,8 @@ function runReport() {
   if (branch) data = data.filter(t => t.branch_code === branch);
   if (rs) data = data.filter(t => t.tender_result_status === rs);
   if (bt) data = data.filter(t => t.bid_type === bt);
+  if (prov) data = data.filter(t => t.commodity_type === prov);
+  if (src) data = data.filter(t => t.tender_source === src);
 
   const now = new Date(); now.setHours(0,0,0,0);
 
@@ -3558,6 +3618,7 @@ function runReport() {
 
   document.getElementById('rptHead').innerHTML = `<tr>
     <th>Tender ID</th><th>Date</th><th>Client</th><th>Branch</th><th>Bid Type</th>
+    <th>Provision</th><th>Source</th>
     <th>Deadline</th><th>Days Left</th><th>Work Status</th><th>Submission</th><th>Result</th>
     <th>Assigned To</th><th>Potential USD</th>
   </tr>`;
@@ -3569,6 +3630,8 @@ function runReport() {
     <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.customer_name)}</td>
     <td>${esc(t.branch_code)}</td>
     <td>${esc(t.bid_type)}</td>
+    <td>${esc(t.commodity_type)}</td>
+    <td>${esc(t.tender_source)}</td>
     <td>${fmtDeadline(t)}</td>
     <td>${daysPill(t.days_left)}</td>
     <td>${workBadge(t.work_status)}</td>
@@ -3576,7 +3639,7 @@ function runReport() {
     <td>${resultBadge(t.tender_result_status, t.ledger_status)}</td>
     <td>${esc(t.assigned_to)}</td>
     <td>${t.potential_amount_usd ? '$'+parseFloat(t.potential_amount_usd).toLocaleString() : '—'}</td>
-  </tr>`).join('') : '<tr><td colspan="12" style="padding:40px;text-align:center;color:var(--muted)">No records found</td></tr>';
+  </tr>`).join('') : '<tr><td colspan="14" style="padding:40px;text-align:center;color:var(--muted)">No records found</td></tr>';
 }
 
 function exportReport() {
@@ -3586,12 +3649,13 @@ function exportReport() {
   const isMonthly = !!data[0]?.month;
   const headers = isMonthly
     ? ['Month','Total','Submitted','Won','Lost','Total Value USD']
-    : ['Tender ID','Date Created','Client','Branch','Bid Type','Deadline','Days Left','Work Status','Submission Status','Result Status','Assigned To','Potential USD','Description','Submission Route','Marketing SPOC'];
+    : ['Tender ID','Date Created','Client','Branch','Bid Type','Provision','Tender Source','Deadline','Days Left','Work Status','Submission Status','Result Status','Assigned To','Potential USD','Description','Submission Route','Marketing SPOC'];
   const rows = isMonthly
     ? data.map(r => [r.month,r.total,r.submitted,r.won,r.lost,r.val])
     : data.map(t => [
         t.tender_unique_id||'', t.date_created||'', t.customer_name||'', t.branch_code||'',
-        t.bid_type||'', t.deadline||'', t.days_left||'', t.work_status||'',
+        t.bid_type||'', t.commodity_type||'', t.tender_source||'',
+        t.deadline||'', t.days_left||'', t.work_status||'',
         t.submission_status||'', t.tender_result_status||'', t.assigned_to||'',
         t.potential_amount_usd||'', (t.bid_description||'').slice(0,100),
         t.submission_route||'', t.marketing_person_spoc_name||''
@@ -3659,16 +3723,50 @@ async function loadTsrReports(period) {
 }
 
 function canManageTsr() {
-  return canManageMasters() || currentUserProfile?.role === 'bidmanager';
+  // tsr_editor is a narrow grant for someone who isn't admin/bidmanager but is
+  // specifically authorized to edit TSR results across every branch (§4).
+  return canManageMasters() || currentUserProfile?.role === 'bidmanager' || !!currentUserProfile?.tsr_editor;
 }
 
 function tsrActionButtons(branchCode, period, status) {
   if (!canManageTsr()) return '—';
+  const dl = status !== 'Not Generated' ? ` <button class="btn btn-outline btn-sm" onclick="exportTsrCsv('${branchCode}','${period}')">⬇ CSV</button>` : '';
   if (status === 'Not Generated') return `<button class="btn btn-outline btn-sm" onclick="generateTsr('${branchCode}','${period}')">Generate</button>`;
-  if (status === 'Generated') return `<button class="btn btn-primary btn-sm" onclick="openTsrModal('send','${branchCode}','${period}')">Mark Sent</button> <button class="btn btn-outline btn-sm" onclick="generateTsr('${branchCode}','${period}')">Regenerate</button>`;
-  if (['Sent', 'Return Pending', 'Escalated'].includes(status)) return `<button class="btn btn-success btn-sm" onclick="openTsrModal('receive','${branchCode}','${period}')">Mark Received</button>`;
-  if (status === 'Received') return `<button class="btn btn-outline btn-sm" onclick="openTsrModal('receive','${branchCode}','${period}')">Update / Re-received</button>`;
+  if (status === 'Generated') return `<button class="btn btn-primary btn-sm" onclick="openTsrModal('send','${branchCode}','${period}')">Mark Sent</button> <button class="btn btn-outline btn-sm" onclick="generateTsr('${branchCode}','${period}')">Regenerate</button>${dl}`;
+  if (['Sent', 'Return Pending', 'Escalated'].includes(status)) return `<button class="btn btn-success btn-sm" onclick="openTsrModal('receive','${branchCode}','${period}')">Mark Received</button>${dl}`;
+  if (status === 'Received') return `<button class="btn btn-outline btn-sm" onclick="openTsrModal('receive','${branchCode}','${period}')">Update / Re-received</button>${dl}`;
   return '—';
+}
+
+// Branch-specific TSR workbook — pulled fresh from allTenders rather than the stored
+// snapshot, so the branch always gets current data even if sent days after Generate.
+const TSR_CSV_HEADERS = ['Tender ID','Customer','Bid Type','Work Status','Submission Status','Result Status','Deadline','Assigned To','Potential USD','Remarks'];
+function tsrCsvRow(t) {
+  return [
+    t.tender_unique_id||'', t.customer_name||'', t.bid_type||'', t.work_status||'',
+    t.submission_status||'', t.tender_result_status||'', t.deadline||'', t.assigned_to||'',
+    t.potential_amount_usd||'', t.bid_preparation_remarks||''
+  ];
+}
+function downloadCsv(filename, headers, rows) {
+  const csv = [headers, ...rows].map(r => r.map(c => '"' + String(c||'').replace(/"/g,'""') + '"').join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,﻿' + encodeURIComponent(csv);
+  a.download = filename;
+  a.click();
+}
+function exportTsrCsv(branchCode, period) {
+  const rows = allTenders.filter(t => t.branch_code === branchCode).map(tsrCsvRow);
+  downloadCsv(`TSR_${branchCode}_${period}.csv`, TSR_CSV_HEADERS, rows);
+  toast('TSR CSV downloaded for ' + branchCode, 'success');
+}
+function exportAllTsrCsv() {
+  const period = document.getElementById('tsrPeriod')?.value || new Date().toISOString().slice(0, 7);
+  const generatedBranches = computeTsrRows(period).filter(row => row.status !== 'Not Generated').map(row => row.branch.id);
+  if (!generatedBranches.length) { toast('No branch has a TSR generated for this period yet', 'error'); return; }
+  const rows = allTenders.filter(t => generatedBranches.includes(t.branch_code)).map(t => [t.branch_code, ...tsrCsvRow(t)]);
+  downloadCsv(`TSR_All_${period}.csv`, ['Branch', ...TSR_CSV_HEADERS], rows);
+  toast(`TSR CSV downloaded for ${generatedBranches.length} branch(es)`, 'success');
 }
 
 async function renderTsrTab() {

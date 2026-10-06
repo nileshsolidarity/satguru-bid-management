@@ -739,7 +739,10 @@
   }
 
   function renderPortals() {
-    if (!document.getElementById('filterPortalCountry').options.length) populatePortalFilters();
+    // The select always has at least its static placeholder option, so "is it
+    // empty" is never true — just repopulate every time; fill() preserves
+    // whatever was already selected.
+    populatePortalFilters();
     const country = document.getElementById('filterPortalCountry').value;
     const region = document.getElementById('filterPortalRegion').value;
     const type = document.getElementById('filterPortalType').value;

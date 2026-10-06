@@ -507,55 +507,30 @@
 <div id="tab-portals" class="tab-content">
   <div class="section-header">
     <div class="section-title">Sourcing Portals</div>
+    <div style="font-size:12px;color:#888" id="portalCount"></div>
   </div>
-  <div class="portals-grid">
 
-    <!-- Global Tenders -->
-    <div class="portal-card">
-      <div class="portal-type">Paid Portal</div>
-      <div class="portal-name">Global Tenders</div>
-      <a href="https://www.globaltenders.com" target="_blank" class="portal-url">globaltenders.com ↗</a>
-      <div class="portal-info">
-        Login: <span>bid.marketing@satgurutravel.com</span><br>
-        Coverage: <span>Worldwide tenders & RFPs</span><br>
-        Category: <span>Travel Management, Corporate, Govt</span>
-      </div>
-      <div class="portal-actions">
-        <a href="https://www.globaltenders.com" target="_blank" class="btn btn-primary btn-sm">Open Portal</a>
-      </div>
+  <div class="table-wrap" style="padding:18px 20px;margin-bottom:20px">
+    <div style="font-size:12px;font-weight:700;color:#555;margin-bottom:10px">+ Add Tender from URL</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <input type="text" id="urlTenderInput" placeholder="Paste a tender/RFP URL from any site..." style="flex:1;min-width:260px;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px"/>
+      <button class="btn btn-primary" onclick="addTenderFromUrl()">+ Add Tender</button>
     </div>
-
-    <!-- Tenders Info -->
-    <div class="portal-card">
-      <div class="portal-type">Paid Portal</div>
-      <div class="portal-name">Tenders Info</div>
-      <a href="https://www.tendersinfo.com" target="_blank" class="portal-url">tendersinfo.com ↗</a>
-      <div class="portal-info">
-        Login: <span>bid.marketing@satgurutravel.com</span><br>
-        Coverage: <span>India & Global tenders</span><br>
-        Category: <span>Travel Management, MICE, Ticketing</span>
-      </div>
-      <div class="portal-actions">
-        <a href="https://www.tendersinfo.com" target="_blank" class="btn btn-primary btn-sm">Open Portal</a>
-      </div>
-    </div>
-
-    <!-- Jobs in Rwanda -->
-    <div class="portal-card open">
-      <div class="portal-type">Open Source Portal</div>
-      <div class="portal-name">Jobs in Rwanda</div>
-      <a href="https://www.jobsinrwanda.com" target="_blank" class="portal-url">jobsinrwanda.com ↗</a>
-      <div class="portal-info">
-        Login: <span>Not required (Open Access)</span><br>
-        Coverage: <span>Rwanda & East Africa</span><br>
-        Category: <span>Govt, NGO, UN Agency tenders</span>
-      </div>
-      <div class="portal-actions">
-        <a href="https://www.jobsinrwanda.com" target="_blank" class="btn btn-secondary btn-sm">Open Portal</a>
-      </div>
-    </div>
-
   </div>
+
+  <div class="filter-bar">
+    <select id="filterPortalCountry" onchange="renderPortals()"><option value="">All Countries</option></select>
+    <select id="filterPortalRegion" onchange="renderPortals()"><option value="">All Regions</option></select>
+    <select id="filterPortalType" onchange="renderPortals()"><option value="">All Types</option></select>
+    <select id="filterPortalAccess" onchange="renderPortals()">
+      <option value="">Paid & Free</option>
+      <option value="Paid">Paid Only</option>
+      <option value="Free">Free Only</option>
+    </select>
+    <input type="text" id="filterPortalSearch" placeholder="Search portals or category..." oninput="renderPortals()"/>
+  </div>
+
+  <div class="portals-grid" id="portalsGrid"></div>
 </div>
 
 <!-- ===== SYNC INFO MODAL (shown on Vercel) ===== -->
@@ -725,6 +700,106 @@
     });
     if (name === 'dashboard') renderDashboard();
     if (name === 'bids') renderBidTable();
+    if (name === 'portals') renderPortals();
+  }
+
+  // ── Portal Sources ────────────────────────────────────────────────────────
+  // Verified public URLs as of this build. access: 'Paid' requires a subscription/login;
+  // everything else is a free public tender board (some require supplier registration to bid).
+  const PORTAL_SOURCES = [
+    { name: 'Global Tenders', url: 'https://www.globaltenders.com', country: 'Global', region: 'Worldwide', type: 'Commercial', access: 'Paid', category: 'Travel Management, Corporate, Govt', notes: 'Login: bid.marketing@satgurutravel.com' },
+    { name: 'Tenders Info', url: 'https://www.tendersinfo.com', country: 'Global', region: 'Worldwide', type: 'Commercial', access: 'Paid', category: 'Travel Management, MICE, Ticketing', notes: 'Login: bid.marketing@satgurutravel.com' },
+    { name: 'Jobs in Rwanda', url: 'https://www.jobsinrwanda.com', country: 'Rwanda', region: 'East Africa', type: 'Aggregator', access: 'Free', category: 'Govt, NGO, UN Agency tenders' },
+    { name: 'UNGM (UN Global Marketplace)', url: 'https://www.ungm.org', country: 'Multilateral', region: 'Worldwide', type: 'Multilateral / UN', access: 'Free', category: 'Procurement across 50+ UN agencies — travel, logistics, general services', notes: 'Free to browse; vendor registration needed to bid' },
+    { name: 'World Bank Procurement', url: 'https://projects.worldbank.org/en/projects-operations/procurement', country: 'Multilateral', region: 'Worldwide', type: 'Multilateral', access: 'Free', category: 'Consulting, works & goods on Bank-financed projects' },
+    { name: 'African Development Bank (AfDB)', url: 'https://www.afdb.org/en/projects-and-operations/procurement', country: 'Multilateral', region: 'Africa', type: 'Multilateral', access: 'Free', category: 'Bank-financed projects across Africa' },
+    { name: 'UNDP Procurement Notices', url: 'https://procurement-notices.undp.org', country: 'Multilateral', region: 'Worldwide', type: 'Multilateral / UN', access: 'Free', category: 'UNDP country-office procurement notices' },
+    { name: 'South Africa eTenders', url: 'https://www.etenders.gov.za', country: 'South Africa', region: 'Southern Africa', type: 'Government', access: 'Free', category: 'National Treasury tenders — all sectors' },
+    { name: 'Kenya PPIP', url: 'https://tenders.go.ke', country: 'Kenya', region: 'East Africa', type: 'Government', access: 'Free', category: 'National & county government tenders' },
+    { name: 'Tanzania NeST (PPRA)', url: 'https://www.ppra.go.tz/services/taneps', country: 'Tanzania', region: 'East Africa', type: 'Government', access: 'Free', category: 'National e-procurement system (NeST)' },
+    { name: 'Uganda GPP', url: 'https://gpp.ppda.go.ug', country: 'Uganda', region: 'East Africa', type: 'Government', access: 'Free', category: 'Central govt, local govt & state enterprise tenders' },
+    { name: 'Rwanda Umucyo', url: 'https://www.umucyo.gov.rw', country: 'Rwanda', region: 'East Africa', type: 'Government', access: 'Free', category: 'Public e-procurement (e-GP)' },
+    { name: 'Zambia ZPPA', url: 'https://www.zppa.org.zm', country: 'Zambia', region: 'Southern Africa', type: 'Government', access: 'Free', category: 'Public procurement notices' },
+    { name: 'Ghana GHANEPS', url: 'https://ghaneps.gov.gh', country: 'Ghana', region: 'West Africa', type: 'Government', access: 'Free', category: 'Public e-procurement system' },
+    { name: 'Nigeria BPP', url: 'https://www.bpp.gov.ng', country: 'Nigeria', region: 'West Africa', type: 'Government', access: 'Free', category: 'Federal public procurement' },
+    { name: 'India GeM', url: 'https://gem.gov.in', country: 'India', region: 'South Asia', type: 'Government', access: 'Free', category: 'Government e-marketplace — goods & services', notes: 'Free to browse; vendor registration needed to bid' },
+    { name: 'Zimbabwe PRAZ', url: 'https://www.praz.gov.zw', country: 'Zimbabwe', region: 'Southern Africa', type: 'Government', access: 'Free', category: 'Public procurement regulatory notices' },
+  ];
+
+  function populatePortalFilters() {
+    const fill = (id, values, placeholder) => {
+      const sel = document.getElementById(id);
+      const current = sel.value;
+      sel.innerHTML = `<option value="">${placeholder}</option>` +
+        values.map(v => `<option value="${v}" ${v === current ? 'selected' : ''}>${v}</option>`).join('');
+    };
+    fill('filterPortalCountry', [...new Set(PORTAL_SOURCES.map(p => p.country))].sort(), 'All Countries');
+    fill('filterPortalRegion', [...new Set(PORTAL_SOURCES.map(p => p.region))].sort(), 'All Regions');
+    fill('filterPortalType', [...new Set(PORTAL_SOURCES.map(p => p.type))].sort(), 'All Types');
+  }
+
+  function renderPortals() {
+    if (!document.getElementById('filterPortalCountry').options.length) populatePortalFilters();
+    const country = document.getElementById('filterPortalCountry').value;
+    const region = document.getElementById('filterPortalRegion').value;
+    const type = document.getElementById('filterPortalType').value;
+    const access = document.getElementById('filterPortalAccess').value;
+    const search = document.getElementById('filterPortalSearch').value.toLowerCase();
+
+    const filtered = PORTAL_SOURCES.filter((p, i) => {
+      p._idx = i;
+      return (!country || p.country === country)
+        && (!region || p.region === region)
+        && (!type || p.type === type)
+        && (!access || p.access === access)
+        && (!search || p.name.toLowerCase().includes(search) || p.category.toLowerCase().includes(search));
+    });
+
+    document.getElementById('portalCount').textContent = `${filtered.length} of ${PORTAL_SOURCES.length} sources`;
+    const grid = document.getElementById('portalsGrid');
+    if (!filtered.length) {
+      grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="icon">🔍</div><p>No sources match these filters.</p></div>`;
+      return;
+    }
+    grid.innerHTML = filtered.map(p => `
+      <div class="portal-card ${p.access === 'Free' ? 'open' : ''}">
+        <div class="portal-type">${p.type} · ${p.access}</div>
+        <div class="portal-name">${p.name}</div>
+        <a href="${p.url}" target="_blank" class="portal-url">${p.url.replace(/^https?:\/\//, '')} ↗</a>
+        <div class="portal-info">
+          Coverage: <span>${p.country} — ${p.region}</span><br>
+          Category: <span>${p.category}</span>
+          ${p.notes ? `<br>${p.notes}` : ''}
+        </div>
+        <div class="portal-actions">
+          <a href="${p.url}" target="_blank" class="btn btn-secondary btn-sm">Open Portal</a>
+          <button class="btn btn-primary btn-sm" onclick="addTenderFromPortal(${p._idx})">+ Add Tender</button>
+        </div>
+      </div>`).join('');
+  }
+
+  // Shared handoff to the Tender module — same satguru_prefill bridge trackTender() uses.
+  function openTenderPrefill(data) {
+    localStorage.setItem('satguru_prefill', JSON.stringify({
+      date_identified: new Date().toISOString().slice(0,10),
+      notification_received_date: new Date().toISOString().slice(0,10),
+      ...data,
+    }));
+    window.open('tenders.html?quick=1', '_blank');
+  }
+
+  function addTenderFromPortal(idx) {
+    const p = PORTAL_SOURCES[idx];
+    if (!p) return;
+    openTenderPrefill({ link: p.url, country: p.country, source_portal: p.name });
+  }
+
+  function addTenderFromUrl() {
+    const input = document.getElementById('urlTenderInput');
+    const url = input.value.trim();
+    if (!url) { showToast('Paste a tender URL first', 'error'); return; }
+    openTenderPrefill({ link: url, source_portal: 'Direct URL' });
+    input.value = '';
   }
 
   // ── Status badge ─────────────────────────────────────────────────────────

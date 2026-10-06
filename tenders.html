@@ -625,6 +625,11 @@
               <input type="date" class="form-control" id="f_notification_received_date"/>
             </div>
             <div class="form-group">
+              <label>Date Identified</label>
+              <input type="date" class="form-control" id="f_date_identified"/>
+              <span class="field-note">When this opportunity was first found — on a portal, or otherwise.</span>
+            </div>
+            <div class="form-group">
               <label>Bid Type <span class="req">*</span></label>
               <select class="form-control" id="f_bid_type">
                 <option value="">— Select —</option>
@@ -1449,11 +1454,13 @@ function checkQuickPrefill() {
   if (!new URLSearchParams(location.search).has('quick')) return;
   try {
     const data = JSON.parse(localStorage.getItem('satguru_prefill') || '{}');
-    if (!data.customer_name) return;
+    // A scraped-tender handoff always has a title (customer_name); a blank "Add Tender"
+    // from a portal card or a pasted URL has no title yet but still carries portal context.
+    if (!data.customer_name && !data.source_portal && !data.link) return;
     localStorage.removeItem('satguru_prefill');
     const banner = document.createElement('div');
     banner.style.cssText = 'background:#1d4ed8;color:white;padding:12px 28px;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:space-between;gap:12px;';
-    banner.innerHTML = `<span>📋 Pre-filled from Portal Tracker — fill Branch &amp; Deadline, then Save. All other fields can be completed later.</span><button onclick="this.parentElement.remove()" style="background:none;border:none;color:white;cursor:pointer;font-size:18px;flex-shrink:0">✕</button>`;
+    banner.innerHTML = `<span>📋 Pre-filled from Portal Tracker — fill Client Name, Branch &amp; Deadline, then Save. All other fields can be completed later.</span><button onclick="this.parentElement.remove()" style="background:none;border:none;color:white;cursor:pointer;font-size:18px;flex-shrink:0">✕</button>`;
     document.getElementById('app').insertBefore(banner, document.querySelector('.tabs-bar').nextSibling);
     window._prefillData = data;
   } catch(e) {}
@@ -1468,6 +1475,7 @@ function applyPrefill() {
     tender_source: 'Portal',
     mode: 'Online Portal',
     notification_received_date: data.notification_received_date,
+    date_identified: data.date_identified || new Date().toISOString().slice(0,10),
     deadline: data.deadline,
     work_status: 'Not Started',
     submission_status: 'Pending',
@@ -2294,6 +2302,7 @@ function openNewTender() {
   document.getElementById('formTitle').textContent = 'New Tender';
   document.getElementById('formTenderId').textContent = 'ID will be auto-generated on save';
   document.getElementById('f_date_created').value = new Date().toISOString().slice(0,10);
+  document.getElementById('f_date_identified').value = new Date().toISOString().slice(0,10);
   document.getElementById('f_created_by_name').value = currentUser.displayName || currentUser.email;
   document.getElementById('f_reminder_status').value = 'Active';
   // The creator is assigned automatically; only a Team Lead/Manager/Admin may reassign.
@@ -2330,7 +2339,7 @@ async function openEditTender(id) {
 
   // Populate all fields
   const fields = [
-    'tender_unique_id','date_created','tender_source','mode','notification_received_date',
+    'tender_unique_id','date_created','tender_source','mode','notification_received_date','date_identified',
     'bid_type','customer_name','tender_reference_id','global_client_name','nca_erv',
     'evaluation_status','clarification_due_date','evaluation_remarks',
     'bid_description','commodity_type','potential_amount_usd','branch_code','domain_name',
@@ -2549,6 +2558,7 @@ async function saveTender() {
     tender_source: getString('tender_source'),
     mode: getString('mode'),
     notification_received_date: getString('notification_received_date'),
+    date_identified: getString('date_identified'),
     bid_type: getString('bid_type'),
     customer_name: getString('customer_name'),
     tender_reference_id: getString('tender_reference_id'),
